@@ -1,0 +1,108 @@
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.config import Settings
+from app.crm.providers import (
+    CrmProvider,
+    CrmSyncResult,
+    CrmTaskPayload,
+    HubSpotCrmProvider,
+    MockCrmProvider,
+)
+from app.persistence.models import ExternalMapping, HandoffTask, Qualification
+
+
+def provider_for(settings: Settings) -> CrmProvider:
+    if settings.crm_mode == "hubspot":
+        if not settings.hubspot_access_token:
+            raise ValueError("HubSpot credentials are not configured")
+        return HubSpotCrmProvider(
+            access_token=settings.hubspot_access_token,
+            api_version=settings.hubspot_api_version,
+        )
+    return MockCrmProvider()
+
+
+def _safe_body(handoff: HandoffTask, qualification: Qualification | None) -> str:
+    fields = [f"Reason: {handoff.reason}"]
+    if qualification:
+        for label, value in (
+            ("Need", qualification.need),
+            ("Scope", qualification.scope),
+            ("Timeline", qualification.timeline),
+            ("Interest", qualification.interest),
+            ("Confirmed next step", qualification.requested_next_step),
+        ):
+            fields.append(f"{label}: {value if value is not None else 'Unknown'}")
+    fields.append("Full transcript remains in the controlled application and is not copied here.")
+    return "\n".join(fields)[:5000]
+
+
+def sync_handoff(
+    session: Session,
+    *,
+    organization_id: UUID,
+    handoff_id: UUID,
+    settings: Settings,
+    provider: CrmProvider | None = None,
+) -> CrmSyncResult:
+    handoff = session.scalar(
+        select(HandoffTask)
+        .where(
+            HandoffTask.id == handoff_id,
+            HandoffTask.organization_id == organization_id,
+        )
+        .with_for_update()
+    )
+    if handoff is None:
+        raise LookupError("handoff not found")
+    adapter = provider or provider_for(settings)
+    existing = session.scalar(
+        select(ExternalMapping).where(
+            ExternalMapping.organization_id == organization_id,
+            ExternalMapping.provider == adapter.name,
+            ExternalMapping.local_type == "handoff_task",
+            ExternalMapping.local_id == handoff.id,
+        )
+    )
+    if existing:
+        verified = adapter.verify_task(existing.external_id)
+        if not verified:
+            raise RuntimeError("stored CRM mapping could not be verified")
+        return CrmSyncResult(
+            external_id=existing.external_id,
+            external_url=handoff.external_reference or f"{adapter.name}://tasks/{existing.external_id}",
+            verified=True,
+        )
+    qualification = session.scalar(
+        select(Qualification).where(
+            Qualification.organization_id == organization_id,
+            Qualification.call_id == handoff.call_id,
+        )
+    )
+    result = adapter.sync_task(
+        CrmTaskPayload(
+            local_id=handoff.id,
+            subject=f"AI sales follow-up · {handoff.priority} priority",
+            body=_safe_body(handoff, qualification),
+            due_at=handoff.due_at,
+            priority=handoff.priority,
+        )
+    )
+    if not result.verified:
+        raise RuntimeError("CRM provider did not verify the external task")
+    session.add(
+        ExternalMapping(
+            organization_id=organization_id,
+            provider=adapter.name,
+            local_type="handoff_task",
+            local_id=handoff.id,
+            external_type="task",
+            external_id=result.external_id,
+        )
+    )
+    handoff.external_reference = result.external_url
+    session.flush()
+    return result

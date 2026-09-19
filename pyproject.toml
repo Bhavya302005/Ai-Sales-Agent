@@ -1,0 +1,6 @@
+[tool.uv.workspace]
+members = ["apps/api", "packages/domain"]
+
+[tool.uv.sources]
+sales-agent-domain = { workspace = true }
+
