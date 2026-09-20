@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from app.auth import Auth
 from app.config import Settings, get_settings
 from app.db import get_session, get_engine
-from app.discovery.company_intel_enricher import enrich_company_intel
 from app.discovery.ingestion import ingest_source
 from app.discovery.phone_enricher import enrich_contact
 from app.discovery.service import DiscoveryItem, discover_with_exa, load_demo_snapshot
@@ -107,16 +106,17 @@ def _active_product_version(session: Session, organization_id: UUID) -> ProductV
 
 
 def _spawn_phone_enrichment(item: DiscoveryItem, document_id: UUID) -> None:
-    """Kick off background phone/email + market-intel enrichment in two daemon threads.
+    """Kick off background phone/email enrichment in a daemon thread.
 
-    Both enrichers run in parallel and each opens its own SQLAlchemy Session so
-    they never block the HTTP response or each other.
+    Opens its own SQLAlchemy Session so it doesn't share the request-scoped
+    session, and therefore never blocks the HTTP response.
     """
 
-    def _run_phone() -> None:
+    def _run() -> None:
         try:
             contact_data = enrich_contact(item)
-            from sqlalchemy.orm import Session as _Session
+            # Write-back: open a fresh session, merge into provider_metadata
+            from sqlalchemy.orm import Session as _Session  # local import avoids cycles
             engine = get_engine()
             with _Session(engine) as sess:
                 doc = sess.get(SourceDocument, document_id)
@@ -125,26 +125,11 @@ def _spawn_phone_enrichment(item: DiscoveryItem, document_id: UUID) -> None:
                     existing.update(contact_data)
                     doc.provider_metadata = existing
                     sess.commit()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — enrichment is best-effort
             pass
 
-    def _run_intel() -> None:
-        try:
-            intel_data = enrich_company_intel(item)
-            from sqlalchemy.orm import Session as _Session
-            engine = get_engine()
-            with _Session(engine) as sess:
-                doc = sess.get(SourceDocument, document_id)
-                if doc is not None:
-                    existing = dict(doc.provider_metadata or {})
-                    existing.update(intel_data)
-                    doc.provider_metadata = existing
-                    sess.commit()
-        except Exception:  # noqa: BLE001
-            pass
-
-    threading.Thread(target=_run_phone, daemon=True).start()
-    threading.Thread(target=_run_intel, daemon=True).start()
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
 
 
 def _ingest_and_extract(
