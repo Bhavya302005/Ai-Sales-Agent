@@ -32,6 +32,8 @@ services:
         value: mcp
       - key: DISCOVERY_MODE
         value: live
+      - key: SOURCE_ALLOWED_HOSTS
+        value: "linkedin.com,reliefweb.int,zoominfo.com,rocketreach.co,whitepages.com,truepeoplesearch.com,clutch.co,manta.com,apollo.io,signalhire.com,hunter.io,clearbit.com"
       - key: DIALOGUE_MODE
         value: gemini
       - key: VOICE_TRANSPORT

@@ -1,23 +1,11 @@
 import json
-import os
 import re
-import shutil
-import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-# Load .env from project root so EXA_API_KEY is always available
-_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
-if _ENV_FILE.exists():
-    for _line in _ENV_FILE.read_text().splitlines():
-        _line = _line.strip()
-        if _line and not _line.startswith("#") and "=" in _line:
-            _k, _, _v = _line.partition("=")
-            os.environ.setdefault(_k.strip(), _v.strip())
-
-_EXA_API_KEY: str = os.environ.get("EXA_API_KEY", "")
+from app.discovery.exa_client import exa_search as _exa_raw
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -264,10 +252,6 @@ def discover_with_exa(
     Uses the multi-platform 22-query engine built from the product version's ICP.
     Results older than _CUTOFF_DAYS are discarded before being returned.
     """
-    executable = shutil.which("mcporter")
-    if executable is None:
-        raise RuntimeError("mcporter is not installed")
-
     thirty_ago = (
         datetime.now(UTC) - timedelta(days=_CUTOFF_DAYS)
     ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -276,54 +260,15 @@ def discover_with_exa(
     seen: set[str] = set()
 
     for query_str, include_domains in build_requirement_queries(product_version):
-        args: dict[str, object] = {
-            "query": query_str,
-            "numResults": 10,
-            "startPublishedDate": thirty_ago,
-        }
-        if include_domains:
-            args["includeDomains"] = include_domains
-
-        exa_key = _EXA_API_KEY
-        if exa_key:
-            cmd = [
-                executable, "call",
-                "--http-url", f"https://mcp.exa.ai/mcp?exaApiKey={exa_key}",
-                "--tool", "web_search_exa",
-                "--output", "json",
-                "--args", json.dumps(args),
-                "--timeout", str(timeout_seconds * 1000),
-            ]
-        else:
-            cmd = [
-                executable, "call", "exa.web_search_exa",
-                "--output", "json",
-                "--args", json.dumps(args),
-                "--timeout", str(timeout_seconds * 1000),
-                "--no-oauth",
-            ]
-        completed = subprocess.run(
-            cmd,
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=timeout_seconds,
+        raw_text = _exa_raw(
+            query_str,
+            num_results=10,
+            include_domains=include_domains or None,
+            start_published_date=thirty_ago,
         )
-        if completed.returncode != 0:
-            # Non-fatal: log and continue with remaining queries
+        if not raw_text:
             continue
-        if len(completed.stdout) > 1_000_000:
-            continue
-        try:
-            payload = json.loads(completed.stdout)
-        except ValueError:
-            continue
-        text = "\n".join(
-            str(block.get("text", ""))
-            for block in payload.get("content", [])
-            if block.get("type") == "text"
-        )
-        for item in _parse_exa_text(text, query_str):
+        for item in _parse_exa_text(raw_text, query_str):
             if item.canonical_url in seen:
                 continue
             seen.add(item.canonical_url)
