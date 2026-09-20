@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -272,19 +273,26 @@ def discover_with_exa(
         if include_domains:
             args["includeDomains"] = include_domains
 
-        completed = subprocess.run(
-            [
-                executable,
-                "call",
-                "exa.web_search_exa",
-                "--output",
-                "json",
-                "--args",
-                json.dumps(args),
-                "--timeout",
-                str(timeout_seconds * 1000),
+        exa_key = os.environ.get("EXA_API_KEY", "")
+        if exa_key:
+            cmd = [
+                executable, "call",
+                "--http-url", f"https://mcp.exa.ai/mcp?exaApiKey={exa_key}",
+                "--tool", "web_search_exa",
+                "--output", "json",
+                "--args", json.dumps(args),
+                "--timeout", str(timeout_seconds * 1000),
+            ]
+        else:
+            cmd = [
+                executable, "call", "exa.web_search_exa",
+                "--output", "json",
+                "--args", json.dumps(args),
+                "--timeout", str(timeout_seconds * 1000),
                 "--no-oauth",
-            ],
+            ]
+        completed = subprocess.run(
+            cmd,
             capture_output=True,
             check=False,
             text=True,

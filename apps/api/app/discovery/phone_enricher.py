@@ -19,11 +19,24 @@ failures are swallowed so the lead always appears, just without a phone.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+# Load .env from project root so EXA_API_KEY is available in subprocess env
+_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
+if _ENV_FILE.exists():
+    for _line in _ENV_FILE.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
+
+_EXA_API_KEY: str = os.environ.get("EXA_API_KEY", "")
 
 if TYPE_CHECKING:
     from app.discovery.service import DiscoveryItem
@@ -105,15 +118,26 @@ def _exa_search(query: str, num: int = 8) -> str:
     if not executable:
         return ""
     args: dict = {"query": query, "numResults": num}
+    if _EXA_API_KEY:
+        cmd = [
+            executable, "call",
+            "--http-url", f"https://mcp.exa.ai/mcp?exaApiKey={_EXA_API_KEY}",
+            "--tool", "web_search_exa",
+            "--output", "json",
+            "--args", json.dumps(args),
+            "--timeout", "25000",
+        ]
+    else:
+        cmd = [
+            executable, "call", "exa.web_search_exa",
+            "--output", "json",
+            "--args", json.dumps(args),
+            "--timeout", "25000",
+            "--no-oauth",
+        ]
     try:
         result = subprocess.run(
-            [
-                executable, "call", "exa.web_search_exa",
-                "--output", "json",
-                "--args", json.dumps(args),
-                "--timeout", "25000",
-                "--no-oauth",
-            ],
+            cmd,
             capture_output=True,
             check=False,
             text=True,
