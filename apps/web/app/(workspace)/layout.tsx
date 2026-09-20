@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { signOut } from "@/app/login/actions";
-import { getViewer } from "@/lib/api";
+import { getNotifications, getViewer } from "@/lib/api";
 
 const navigation = [
   ["Knowledge", "/onboarding"],
@@ -10,11 +10,14 @@ const navigation = [
   ["Campaign", "/campaigns"],
   ["Voice lab", "/voice-lab"],
   ["Analytics", "/analytics"],
+  ["Callbacks", "/callbacks"],
+  ["Notifications", "/notifications"],
   ["Integrations", "/settings/integrations"],
+  ["Admin", "/admin"],
 ] as const;
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const { me, workspace } = await getViewer();
+  const [{ me, workspace }, notifications] = await Promise.all([getViewer(), getNotifications()]);
   return (
     <div className="product-shell">
       <aside className="sidebar">
@@ -28,7 +31,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
         <nav aria-label="Primary">
           {navigation.map(([label, href]) => (
             <Link className="nav-link" href={href} key={href}>
-              {label}
+              {label}{label === "Notifications" && notifications.unread_count ? ` (${notifications.unread_count})` : ""}
             </Link>
           ))}
         </nav>

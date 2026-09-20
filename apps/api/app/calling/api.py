@@ -14,6 +14,16 @@ from app.calling.service import ACTIVE_CALL_STATES, request_call
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.jobs.service import IdempotencyConflict
+from app.omnidim_voice import (
+    OmniDimClient,
+    OmniDimPermanentError,
+    OmniDimRetryableError,
+    dispatch_omnidim_call,
+)
+from app.omnidim_voice import (
+    provider_mapping as omnidim_provider_mapping,
+)
+from app.outcomes.service import finalize_completed_call
 from app.persistence.models import (
     AuditLog,
     Call,
@@ -24,8 +34,10 @@ from app.persistence.models import (
     HandoffTask,
     Lead,
     Qualification,
+    TranscriptSegment,
     Workspace,
 )
+from app.rate_limits import enforce_rate_limit
 from app.twilio_voice import dispatch_twilio_call, end_twilio_call, provider_mapping
 
 router = APIRouter(prefix="/api/v1", tags=["calling"])
@@ -35,7 +47,13 @@ class CallRequest(BaseModel):
     lead_id: UUID
     contact_id: UUID
     campaign_id: UUID
-    transport: Literal["browser", "twilio"] = "browser"
+    transport: Literal["browser", "twilio", "omnidim"] = "browser"
+
+
+class CallingProviderResponse(BaseModel):
+    transport: str
+    pstn_configured: bool
+    label: str
 
 
 class PstnConsentRequest(BaseModel):
@@ -84,6 +102,7 @@ class CampaignResponse(BaseModel):
     scheduled_start_at: datetime | None
     recurrence: str
     max_attempts: int
+    retry_delay_minutes: int
     leads: list[CampaignLeadResponse]
 
 
@@ -94,6 +113,7 @@ class CampaignCreate(BaseModel):
     scheduled_start_at: datetime | None = None
     recurrence: Literal["once", "daily", "weekly", "monthly"] = "once"
     max_attempts: int = Field(default=1, ge=1, le=5)
+    retry_delay_minutes: int = Field(default=60, ge=5, le=1440)
     daily_budget_inr: Decimal = Field(default=Decimal("500"), ge=0, le=100_000)
 
 
@@ -103,6 +123,7 @@ class CampaignUpdate(BaseModel):
     scheduled_start_at: datetime | None = None
     recurrence: Literal["once", "daily", "weekly", "monthly"] | None = None
     max_attempts: int | None = Field(default=None, ge=1, le=5)
+    retry_delay_minutes: int | None = Field(default=None, ge=5, le=1440)
     daily_budget_inr: Decimal | None = Field(default=None, ge=0, le=100_000)
     status: Literal["draft", "active", "paused", "completed"] | None = None
 
@@ -138,6 +159,7 @@ def _campaign_response(
         scheduled_start_at=campaign.scheduled_start_at,
         recurrence=campaign.recurrence,
         max_attempts=campaign.max_attempts,
+        retry_delay_minutes=campaign.retry_delay_minutes,
         leads=[
             _campaign_lead_response(session, organization_id, item)
             for item in session.scalars(
@@ -194,6 +216,7 @@ def create_campaign(
         scheduled_start_at=payload.scheduled_start_at,
         recurrence=payload.recurrence,
         max_attempts=payload.max_attempts,
+        retry_delay_minutes=payload.retry_delay_minutes,
     )
     session.add(campaign)
     session.flush()
@@ -460,6 +483,9 @@ def create_call_request(
 ) -> CallResponse:
     if auth.role not in {"owner", "operator"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+    enforce_rate_limit(
+        session, identity=f"{auth.organization_id}:{auth.user_id}", category="call-action", limit=10
+    )
     try:
         result = request_call(
             session,
@@ -551,21 +577,27 @@ def dispatch_call(
 ) -> CallResponse:
     if auth.role not in {"owner", "operator"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+    enforce_rate_limit(
+        session, identity=f"{auth.organization_id}:{auth.user_id}", category="call-action", limit=10
+    )
     call = session.scalar(
         select(Call).where(Call.id == call_id, Call.organization_id == auth.organization_id)
     )
     if call is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Call not found")
-    if call.transport != "twilio":
+    if call.transport not in {"twilio", "omnidim"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Call is not PSTN")
     try:
-        dispatch_twilio_call(session, call=call, settings=settings)
+        if call.transport == "twilio":
+            dispatch_twilio_call(session, call=call, settings=settings)
+        else:
+            dispatch_omnidim_call(session, call=call, settings=settings)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Twilio rejected the outbound call request",
+            detail=f"{call.transport} rejected the outbound call request",
         ) from exc
     session.add(
         AuditLog(
@@ -574,7 +606,166 @@ def dispatch_call(
             action="pstn_call_dispatched",
             target_type="call",
             target_id=call.id,
-            reason="Eligible consent-gated test call dispatched through Twilio",
+            reason=f"Eligible consent-gated test call dispatched through {call.transport}",
+            request_id=request.state.request_id,
+        )
+    )
+    session.commit()
+    return _call_response(call)
+
+
+@router.get("/calling/provider", response_model=CallingProviderResponse)
+def calling_provider(
+    auth: Auth, settings: Annotated[Settings, Depends(get_settings)]
+) -> CallingProviderResponse:
+    del auth
+    configured = (
+        bool(
+            settings.omnidim_api_key
+            and settings.omnidim_agent_id
+            and settings.omnidim_test_to_number
+            and settings.enable_outbound_pstn
+        )
+        if settings.voice_transport == "omnidim"
+        else bool(
+            settings.twilio_account_sid
+            and settings.twilio_auth_token
+            and settings.twilio_from_number
+            and settings.twilio_test_to_number
+            and settings.public_voice_base_url
+            and settings.enable_outbound_pstn
+        )
+        if settings.voice_transport == "twilio"
+        else False
+    )
+    return CallingProviderResponse(
+        transport=settings.voice_transport,
+        pstn_configured=configured,
+        label=(
+            "OmniDimension outbound AI calling"
+            if settings.voice_transport == "omnidim"
+            else "Twilio ConversationRelay"
+            if settings.voice_transport == "twilio"
+            else "Browser voice demo"
+        ),
+    )
+
+
+def _affirmative_provider_handoff(values: dict[str, Any]) -> bool:
+    accepted = {"yes", "true", "interested", "positive", "requested", "confirmed"}
+    for key in ("interest", "interested", "follow_up", "callback_requested"):
+        value = values.get(key)
+        if isinstance(value, bool) and value:
+            return True
+        if isinstance(value, str) and value.strip().casefold() in accepted:
+            return True
+    return False
+
+
+@router.post("/calls/{call_id}/refresh", response_model=CallResponse)
+def refresh_provider_call(
+    call_id: UUID,
+    request: Request,
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> CallResponse:
+    if auth.role not in {"owner", "operator"}:
+        raise HTTPException(status_code=403, detail="Editor role required")
+    enforce_rate_limit(
+        session, identity=f"{auth.organization_id}:{auth.user_id}", category="call-action", limit=10
+    )
+    call = session.scalar(
+        select(Call).where(Call.id == call_id, Call.organization_id == auth.organization_id)
+    )
+    if call is None:
+        raise HTTPException(status_code=404, detail="Call not found")
+    if call.transport != "omnidim":
+        raise HTTPException(status_code=409, detail="Call does not use OmniDimension")
+    mapping = omnidim_provider_mapping(session, call_id=call.id)
+    if mapping is None:
+        raise HTTPException(status_code=409, detail="Call has not been dispatched")
+    provider = OmniDimClient(settings)
+    try:
+        result = provider.result(mapping.external_id)
+    except OmniDimPermanentError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OmniDimRetryableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        provider.close()
+    if result is None:
+        return _call_response(call)
+    terminal = result.status in {"completed", "busy", "failed", "no_answer"}
+    if terminal and not session.scalar(
+        select(TranscriptSegment.id).where(
+            TranscriptSegment.organization_id == auth.organization_id,
+            TranscriptSegment.call_id == call.id,
+        )
+    ):
+        sequence = 1
+        for interaction in result.interactions[:100]:
+            if not isinstance(interaction, dict):
+                continue
+            for speaker, key in (("participant", "user_query"), ("agent", "bot_response")):
+                text = str(interaction.get(key) or "").strip()
+                if not text:
+                    continue
+                session.add(
+                    TranscriptSegment(
+                        organization_id=auth.organization_id,
+                        call_id=call.id,
+                        sequence=sequence,
+                        speaker=speaker,
+                        started_ms=(sequence - 1) * 1000,
+                        ended_ms=sequence * 1000,
+                        text=text[:5000],
+                        language="unknown",
+                        is_final=True,
+                    )
+                )
+                sequence += 1
+    call.usage = {
+        **call.usage,
+        "provider_status": result.status,
+        "duration_seconds": result.duration_seconds,
+        "provider_reported_estimated_cost": result.estimated_cost,
+        "provider_sentiment": result.sentiment,
+        "reservation_status": "released" if terminal else "reserved",
+    }
+    if result.status == "completed":
+        call.state = "completed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        call.outcome = (
+            "handoff_requested"
+            if _affirmative_provider_handoff(result.extracted_variables)
+            else "completed"
+        )
+        session.flush()
+        finalize_completed_call(
+            session,
+            organization_id=auth.organization_id,
+            call_id=call.id,
+        )
+    elif result.status in {"busy", "no_answer"}:
+        call.state = "failed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        call.outcome = result.status
+    elif result.status == "failed":
+        call.state = "failed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        call.outcome = "temporary_provider_failure"
+    else:
+        call.state = "active"
+        call.started_at = call.started_at or datetime.now(UTC)
+    session.add(
+        AuditLog(
+            organization_id=auth.organization_id,
+            actor_id=auth.user_id,
+            action="omnidim_call_refreshed",
+            target_type="call",
+            target_id=call.id,
+            reason=f"provider_status={result.status}",
             request_id=request.state.request_id,
         )
     )
@@ -608,6 +799,14 @@ def stop_call(
     )
     if call is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Call not found")
+    if call.transport == "omnidim" and call.state in ACTIVE_CALL_STATES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "OmniDimension does not expose an individual hangup endpoint; "
+                "stop the live call from its dashboard"
+            ),
+        )
     if call.state in ACTIVE_CALL_STATES or call.state == "requested":
         call.state = "ending"
         call.outcome = "stop_requested"

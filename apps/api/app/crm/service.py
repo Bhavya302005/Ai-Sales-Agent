@@ -1,3 +1,5 @@
+import re
+from urllib.parse import urlparse
 from uuid import UUID
 
 from sqlalchemy import select
@@ -13,13 +15,41 @@ from app.crm.providers import (
 )
 from app.persistence.models import ExternalMapping, HandoffTask, Qualification
 
+EXTERNAL_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,200}$")
+
+
+def _safe_external_reference(provider_name: str, result: CrmSyncResult) -> str:
+    if not EXTERNAL_ID_PATTERN.fullmatch(result.external_id):
+        raise RuntimeError("CRM provider returned an invalid external identifier")
+    fallback = f"{provider_name}://tasks/{result.external_id}"
+    parsed = urlparse(result.external_url)
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        return fallback
+    safe_internal_reference = (
+        parsed.scheme == "mock"
+        and parsed.netloc == "crm"
+        and parsed.path.startswith("/tasks/")
+    ) or (
+        parsed.scheme == "hubspot"
+        and parsed.netloc == "tasks"
+        and parsed.path.startswith("/")
+    )
+    if safe_internal_reference:
+        return result.external_url[:500]
+    hostname = (parsed.hostname or "").casefold()
+    if parsed.scheme == "https" and (
+        hostname.endswith(".hubspot.com") or hostname.endswith(".hubapi.com")
+    ):
+        return result.external_url[:500]
+    return fallback
+
 
 def provider_for(settings: Settings) -> CrmProvider:
     if settings.crm_mode == "hubspot":
         if not settings.hubspot_access_token:
             raise ValueError("HubSpot credentials are not configured")
         return HubSpotCrmProvider(
-            access_token=settings.hubspot_access_token,
+            access_token=settings.hubspot_access_token.get_secret_value(),
             api_version=settings.hubspot_api_version,
         )
     return MockCrmProvider()
@@ -93,6 +123,7 @@ def sync_handoff(
     )
     if not result.verified:
         raise RuntimeError("CRM provider did not verify the external task")
+    safe_reference = _safe_external_reference(adapter.name, result)
     session.add(
         ExternalMapping(
             organization_id=organization_id,
@@ -103,6 +134,10 @@ def sync_handoff(
             external_id=result.external_id,
         )
     )
-    handoff.external_reference = result.external_url
+    handoff.external_reference = safe_reference
     session.flush()
-    return result
+    return CrmSyncResult(
+        external_id=result.external_id,
+        external_url=safe_reference,
+        verified=True,
+    )

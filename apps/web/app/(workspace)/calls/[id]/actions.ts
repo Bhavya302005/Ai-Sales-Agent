@@ -16,3 +16,11 @@ export async function syncHandoffToCrm(formData: FormData) {
   });
   revalidatePath(`/calls/${callId}`);
 }
+
+export async function refreshProviderCall(formData: FormData) {
+  const callId = String(formData.get("call_id") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(callId)) throw new Error("Invalid call refresh request");
+  await apiFetch(`/api/v1/calls/${encodeURIComponent(callId)}/refresh`, { method: "POST" });
+  revalidatePath(`/calls/${callId}`);
+  revalidatePath("/campaigns");
+}

@@ -198,6 +198,7 @@ export type Campaign = {
   scheduled_start_at: string | null;
   recurrence: "once" | "daily" | "weekly" | "monthly";
   max_attempts: number;
+  retry_delay_minutes: number;
   leads: Array<{
     id: string;
     lead_id: string;
@@ -321,6 +322,84 @@ export type CrmStatus = {
   label: string;
 };
 
+export type NotificationFeed = {
+  unread_count: number;
+  items: Array<{
+    id: string;
+    notification_type: string;
+    severity: "info" | "success" | "warning" | "error";
+    title: string;
+    summary: string;
+    action_url: string | null;
+    read_at: string | null;
+    created_at: string;
+  }>;
+};
+
+export type AdminMember = {
+  id: string;
+  user_id: string;
+  role: "owner" | "operator" | "viewer";
+  status: "active" | "inactive";
+};
+
+export type AuditEntry = {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  reason: string | null;
+  request_id: string;
+  occurred_at: string;
+};
+
+export type RuntimeControls = {
+  calls_paused: boolean;
+  environment_kill_switch: boolean;
+  effective_calls_paused: boolean;
+};
+
+export type ProviderHealth = { providers: Record<string, string> };
+
+export type CallingProvider = {
+  transport: "browser" | "twilio" | "omnidim" | "exotel";
+  pstn_configured: boolean;
+  label: string;
+};
+
+export type CallbackRequest = {
+  id: string;
+  call_id: string;
+  handoff_id: string | null;
+  owner_id: string;
+  requested_text: string;
+  scheduled_for: string | null;
+  status: "awaiting_confirmation" | "scheduled" | "completed" | "cancelled";
+  created_at: string;
+};
+
+export type CampaignRun = {
+  id: string;
+  campaign_id: string;
+  scheduled_for: string;
+  state: "scheduled" | "ready" | "completed" | "cancelled";
+  ready_lead_count: number;
+  processed_at: string | null;
+};
+
+export type HubSpotContactPage = {
+  contacts: Array<{
+    external_id: string;
+    display_name: string;
+    company: string | null;
+    masked_phone: string | null;
+    importable: boolean;
+  }>;
+  next_after: string | null;
+  label: string;
+};
+
 type ApiProblem = {
   detail?: string;
 };
@@ -383,6 +462,14 @@ export async function getCampaigns(): Promise<Campaign[]> {
   return apiFetch<Campaign[]>("/api/v1/campaigns");
 }
 
+export async function getCallingProvider(): Promise<CallingProvider> {
+  return apiFetch<CallingProvider>("/api/v1/calling/provider");
+}
+
+export async function getCampaignRuns(campaignId: string): Promise<CampaignRun[]> {
+  return apiFetch<CampaignRun[]>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/runs`);
+}
+
 export async function getCall(id: string): Promise<Call> {
   return apiFetch<Call>(`/api/v1/calls/${encodeURIComponent(id)}`);
 }
@@ -406,4 +493,31 @@ export async function getAnalytics(): Promise<{
 
 export async function getCrmStatus(): Promise<CrmStatus> {
   return apiFetch<CrmStatus>("/api/v1/integrations/crm");
+}
+
+export async function getNotifications(query = ""): Promise<NotificationFeed> {
+  return apiFetch<NotificationFeed>(`/api/v1/notifications${query ? `?${query}` : ""}`);
+}
+
+export async function getAdmin(auditAction = "", auditOffset = 0): Promise<{
+  members: AdminMember[];
+  audit: AuditEntry[];
+  controls: RuntimeControls;
+  health: ProviderHealth;
+}> {
+  const [members, audit, controls, health] = await Promise.all([
+    apiFetch<AdminMember[]>("/api/v1/admin/members"),
+    apiFetch<AuditEntry[]>(`/api/v1/admin/audit-logs?limit=25&offset=${auditOffset}${auditAction ? `&action=${encodeURIComponent(auditAction)}` : ""}`),
+    apiFetch<RuntimeControls>("/api/v1/admin/runtime-controls"),
+    apiFetch<ProviderHealth>("/api/v1/admin/provider-health"),
+  ]);
+  return { members, audit, controls, health };
+}
+
+export async function getCallbacks(): Promise<CallbackRequest[]> {
+  return apiFetch<CallbackRequest[]>("/api/v1/callbacks");
+}
+
+export async function getHubSpotContacts(): Promise<HubSpotContactPage> {
+  return apiFetch<HubSpotContactPage>("/api/v1/integrations/hubspot/contacts?limit=25");
 }

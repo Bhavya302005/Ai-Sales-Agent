@@ -1,3 +1,4 @@
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -6,17 +7,21 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
+from app.admin_api import router as admin_router
 from app.analytics_api import router as analytics_router
 from app.api import router as api_router
 from app.calling.api import router as calling_router
+from app.campaign_ops import router as campaign_ops_router
 from app.company_api import router as company_router
 from app.config import get_settings
 from app.crm.api import router as crm_router
 from app.discovery.api import router as discovery_router
+from app.hubspot_import import router as hubspot_import_router
 from app.jobs.api import router as jobs_router
 from app.knowledge_api import router as knowledge_router
 from app.lead_import import router as lead_import_router
 from app.leads_api import router as leads_router
+from app.notifications import router as notifications_router
 from app.outcomes.api import router as outcomes_router
 from app.readiness import broker_is_ready, database_is_ready
 from app.schemas import HealthResponse, ReadinessCheck, ReadinessResponse
@@ -38,7 +43,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[get_settings().web_origin],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
@@ -55,16 +60,33 @@ app.include_router(outcomes_router)
 app.include_router(crm_router)
 app.include_router(analytics_router)
 app.include_router(discovery_router)
+app.include_router(notifications_router)
+app.include_router(admin_router)
+app.include_router(campaign_ops_router)
+app.include_router(hubspot_import_router)
 
 
 @app.middleware("http")
 async def request_id_middleware(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    supplied_request_id = request.headers.get("X-Request-ID", "")
+    request_id = (
+        supplied_request_id
+        if len(supplied_request_id) <= 100
+        and re.fullmatch(r"[A-Za-z0-9._:-]+", supplied_request_id)
+        else str(uuid4())
+    )
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if get_settings().app_env == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 

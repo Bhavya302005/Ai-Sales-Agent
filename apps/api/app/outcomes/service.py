@@ -7,8 +7,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.notifications import notify_roles
 from app.persistence.models import (
     Call,
+    CallbackRequest,
     CampaignLead,
     HandoffTask,
     Membership,
@@ -288,6 +290,27 @@ def finalize_completed_call(
         )
         session.add(handoff)
         session.flush()
+        session.add(
+            CallbackRequest(
+                organization_id=organization_id,
+                call_id=call.id,
+                handoff_id=handoff.id,
+                owner_id=owner_id,
+                requested_text=qualification.requested_next_step or "Human follow-up requested",
+                scheduled_for=None,
+                status="awaiting_confirmation",
+            )
+        )
+        notify_roles(
+            session,
+            organization_id=organization_id,
+            notification_type="callback_confirmation_required",
+            severity="success",
+            title="Follow-up requested",
+            summary="A qualified conversation requires callback scheduling.",
+            action_url="/callbacks",
+            dedupe_key=f"callback:{call.id}",
+        )
         handoff_created = True
 
     return FinalizationResult(

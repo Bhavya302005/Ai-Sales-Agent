@@ -11,8 +11,10 @@ bounded CSV/XLSX import. Direct requirements can become reviewed leads; hiring r
 market signals and can never become automatically call-eligible. Eligible browser calls produce transcript-backed
 qualification, a human handoff, idempotent mock CRM synchronization and reconciled analytics. Live
 Sarvam remains blocked by zero credits. A Twilio ConversationRelay outbound test-call path is
-implemented but remains disabled until credentials, one consenting test number, and a public HTTPS
-voice URL are configured. The HubSpot adapter is implemented but must remain labelled
+implemented but remains disabled until provider access is available. OmniDimension is now the selected
+real-call path: manual idempotent dispatch and bounded call-result import are implemented, but remain
+labelled unverified until an API key, outgoing agent ID, and consenting test number are configured.
+The HubSpot adapter is implemented but must remain labelled
 unverified until a test-account write and read-back succeeds with user-provided credentials.
 
 See:
@@ -22,6 +24,8 @@ See:
 - [`docs/demo/acceptance.md`](./docs/demo/acceptance.md) for release acceptance.
 - [`docs/demo/ONE_DAY_RELEASE_RUNBOOK.md`](./docs/demo/ONE_DAY_RELEASE_RUNBOOK.md) for reset, demo,
   limitations, and release commands.
+- [`docs/demo/OMNIDIM_SETUP.md`](./docs/demo/OMNIDIM_SETUP.md) for real-call provider setup.
+- [`docs/demo/DEMO_SUBMISSION.md`](./docs/demo/DEMO_SUBMISSION.md) for recording and submission.
 - [`docs/implementation/AGENT_HANDOFF.md`](./docs/implementation/AGENT_HANDOFF.md) for the exact
   continuation state if another agent needs to resume the project.
 
@@ -113,6 +117,15 @@ configured, consenting test number.
 Twilio HTTP callbacks and the ConversationRelay WebSocket handshake are signature-validated. Failed,
 busy, and unanswered calls release the local spend reservation. Trial-account restrictions, verified
 destinations, ConversationRelay access, and Twilio credits still apply.
+
+### Real OmniDimension test call
+
+OmniDimension is the selected alternative for the real-call demonstration. Configure one outgoing
+agent, one consenting test destination, and `OMNIDIM_API_KEY`, `OMNIDIM_AGENT_ID`, and
+`OMNIDIM_TEST_TO_NUMBER`; then set `VOICE_TRANSPORT=omnidim` and
+`ENABLE_OUTBOUND_PSTN=true`. The application dispatches only after all existing safety gates pass and
+can refresh the provider result into bounded transcript evidence. Follow
+[`docs/demo/OMNIDIM_SETUP.md`](./docs/demo/OMNIDIM_SETUP.md); never commit the API key or number.
 
 Manual URL ingestion is disabled by default. Enable it only after source permission is confirmed:
 

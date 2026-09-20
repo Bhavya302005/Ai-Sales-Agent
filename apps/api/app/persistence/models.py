@@ -267,6 +267,26 @@ class Campaign(IdMixin, TenantMixin, TimestampMixin, Base):
     scheduled_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recurrence: Mapped[str] = mapped_column(String(20), nullable=False, default="once")
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    retry_delay_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+
+
+class CampaignRun(IdMixin, TenantMixin, TimestampMixin, Base):
+    __tablename__ = "campaign_runs"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "campaign_id", "scheduled_for"),
+        CheckConstraint(
+            "state IN ('scheduled', 'ready', 'completed', 'cancelled')",
+            name="campaign_run_state",
+        ),
+    )
+
+    campaign_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    state: Mapped[str] = mapped_column(String(30), nullable=False, default="scheduled")
+    ready_lead_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class CampaignLead(IdMixin, TenantMixin, TimestampMixin, Base):
@@ -392,6 +412,66 @@ class HandoffTask(IdMixin, TenantMixin, TimestampMixin, Base):
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     state: Mapped[str] = mapped_column(String(30), nullable=False)
     external_reference: Mapped[str | None] = mapped_column(String(500))
+
+
+class CallbackRequest(IdMixin, TenantMixin, TimestampMixin, Base):
+    __tablename__ = "callback_requests"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "call_id"),
+        CheckConstraint(
+            "status IN ('awaiting_confirmation', 'scheduled', 'completed', 'cancelled')",
+            name="callback_request_status",
+        ),
+    )
+
+    call_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    handoff_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("handoff_tasks.id", ondelete="SET NULL"), index=True
+    )
+    owner_id: Mapped[UUID] = mapped_column(Uuid, nullable=False, index=True)
+    requested_text: Mapped[str] = mapped_column(String(500), nullable=False)
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class Notification(IdMixin, TenantMixin, TimestampMixin, Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "recipient_user_id", "dedupe_key"),
+        CheckConstraint(
+            "severity IN ('info', 'success', 'warning', 'error')",
+            name="notification_severity",
+        ),
+    )
+
+    recipient_user_id: Mapped[UUID] = mapped_column(Uuid, nullable=False, index=True)
+    notification_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    summary: Mapped[str] = mapped_column(String(500), nullable=False)
+    action_url: Mapped[str | None] = mapped_column(String(500))
+    dedupe_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OrganizationControl(IdMixin, TenantMixin, TimestampMixin, Base):
+    __tablename__ = "organization_controls"
+    __table_args__ = (UniqueConstraint("organization_id"),)
+
+    calls_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_by: Mapped[UUID | None] = mapped_column(Uuid)
+
+
+class RateLimitBucket(IdMixin, Base):
+    __tablename__ = "rate_limit_buckets"
+    __table_args__ = (UniqueConstraint("bucket_hash", "window_start"),)
+
+    bucket_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class IntegrationAccount(IdMixin, TenantMixin, TimestampMixin, Base):

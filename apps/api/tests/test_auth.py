@@ -13,7 +13,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.demo_ids import ORGANIZATION_ID, USER_ID, WORKSPACE_ID
 from app.main import app
-from app.persistence.models import Base, Membership, Organization, Workspace
+from app.persistence.models import Base, Membership, Organization, RateLimitBucket, Workspace
 
 SECOND_ORGANIZATION_ID = UUID("20000000-0000-4000-8000-000000000001")
 
@@ -31,6 +31,7 @@ def _test_dependencies() -> tuple[Settings, Session]:
             Organization.__table__,
             Workspace.__table__,
             Membership.__table__,
+            RateLimitBucket.__table__,
         ],
     )
     session = Session(engine)

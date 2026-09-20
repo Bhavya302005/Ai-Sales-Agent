@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { getCampaigns, getLeads } from "@/lib/api";
+import { getCallingProvider, getCampaignRuns, getCampaigns, getLeads, type CampaignRun } from "@/lib/api";
 
 import {
   approveLead,
@@ -10,15 +10,21 @@ import {
   importLeadFile,
   requestBrowserCall,
   requestPstnCall,
+  processDueCampaigns,
+  updateCampaignRun,
 } from "./actions";
 
 export default async function CampaignsPage() {
-  const [campaigns, leads] = await Promise.all([getCampaigns(), getLeads()]);
+  const [campaigns, leads, provider] = await Promise.all([getCampaigns(), getLeads(), getCallingProvider()]);
+  const campaignRunEntries = await Promise.all(
+    campaigns.map(async (campaign) => [campaign.id, await getCampaignRuns(campaign.id)] as const),
+  );
+  const runsByCampaign: Record<string, CampaignRun[]> = Object.fromEntries(campaignRunEntries);
   return (
     <>
       <header className="page-header">
         <div><div className="eyebrow">Call control</div><h1 className="page-title">Campaigns and calling</h1></div>
-        <span className="mode-badge">Consent required</span>
+        <form action={processDueCampaigns}><button className="secondary-button" type="submit">Process due campaigns</button></form>
       </header>
       <section className="campaign-create-panel">
         <div><p className="kicker">Explicit workflow</p><h2>Create a safe campaign</h2></div>
@@ -36,6 +42,7 @@ export default async function CampaignsPage() {
             <option value="monthly">Monthly</option>
           </select>
           <input defaultValue="1" max="5" min="1" name="max_attempts" type="number" />
+          <input defaultValue="60" max="1440" min="5" name="retry_delay_minutes" type="number" title="Retry delay in minutes" />
           <input defaultValue="500" min="0" name="daily_budget_inr" type="number" />
           <button className="primary-button" type="submit">Create campaign</button>
         </form>
@@ -48,9 +55,23 @@ export default async function CampaignsPage() {
               <strong>₹{campaign.daily_budget_inr} daily cap</strong>
             </div>
             <p className="fine-print">
-              {campaign.recurrence} · maximum {campaign.max_attempts} attempt{campaign.max_attempts === 1 ? "" : "s"}
+              {campaign.recurrence} · maximum {campaign.max_attempts} attempt{campaign.max_attempts === 1 ? "" : "s"} · retry after {campaign.retry_delay_minutes} minutes
               {campaign.scheduled_start_at ? ` · starts ${new Date(campaign.scheduled_start_at).toLocaleString("en-IN")}` : " · available now"}
             </p>
+            <p className="fine-print">Real-call provider: {provider.label} · {provider.pstn_configured ? "configured" : "configuration required"}</p>
+            {(runsByCampaign[campaign.id] ?? []).slice(0, 3).map((run) => (
+              <div className="campaign-run" key={run.id}>
+                <span><b>{run.state}</b> · {new Date(run.scheduled_for).toLocaleString("en-IN")} · {run.ready_lead_count} approved lead(s)</span>
+                {!["completed", "cancelled"].includes(run.state) ? (
+                  <form action={updateCampaignRun}>
+                    <input name="campaign_id" type="hidden" value={campaign.id} />
+                    <input name="run_id" type="hidden" value={run.id} />
+                    <button className="text-button" name="state" type="submit" value="completed">Complete</button>
+                    <button className="text-button" name="state" type="submit" value="cancelled">Cancel</button>
+                  </form>
+                ) : null}
+              </div>
+            ))}
             {campaign.mode === "calling_only" ? (
               <form action={importLeadFile} className="lead-upload-form">
                 <input name="campaign_id" type="hidden" value={campaign.id} />
@@ -101,21 +122,22 @@ export default async function CampaignsPage() {
                           <button className="secondary-button" type="submit">Prepare browser test</button>
                         </form>
                       )}
-                      {item.latest_call_transport === "twilio" && item.latest_call_state === "eligible" && item.latest_call_id ? (
+                      {["twilio", "omnidim"].includes(item.latest_call_transport ?? "") && item.latest_call_state === "eligible" && item.latest_call_id ? (
                         <form action={dispatchPstnCall}>
                           <input name="call_id" type="hidden" value={item.latest_call_id} />
                           <button className="primary-button" type="submit">Place real test call</button>
                         </form>
-                      ) : item.latest_call_transport === "twilio" && item.latest_call_id && ["connecting", "active", "ending"].includes(item.latest_call_state ?? "") ? (
+                      ) : ["twilio", "omnidim"].includes(item.latest_call_transport ?? "") && item.latest_call_id && ["connecting", "active", "ending"].includes(item.latest_call_state ?? "") ? (
                         <Link className="primary-button" href={`/calls/${item.latest_call_id}`}>Track real call</Link>
                       ) : (
                         <form className="pstn-consent-form" action={requestPstnCall}>
                           <input name="campaign_id" type="hidden" value={campaign.id} />
                           <input name="lead_id" type="hidden" value={item.lead_id} />
                           <input name="contact_id" type="hidden" value={item.contact_id} />
-                          <input name="idempotency_key" type="hidden" value={`twilio:${item.id}:${item.lead_id}:${item.contact_id}:${item.latest_call_id ?? "first"}`} />
+                          <input name="transport" type="hidden" value={provider.transport} />
+                          <input name="idempotency_key" type="hidden" value={`${provider.transport}:${item.id}:${item.lead_id}:${item.contact_id}:${item.latest_call_id ?? "first"}`} />
                           <label><input name="consent_attested" type="checkbox" required /> Participant consented to this PSTN test</label>
-                          <button className="primary-button" type="submit">Prepare real call</button>
+                          <button className="primary-button" disabled={!provider.pstn_configured} type="submit">Prepare real call</button>
                         </form>
                       )}
                     </div>

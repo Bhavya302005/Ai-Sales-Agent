@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.crm.providers import CrmPermanentError
 from app.extraction.service import extract_source
+from app.notifications import notify_roles
 from app.persistence.models import (
     IdempotencyRecord,
     Lead,
@@ -242,6 +243,17 @@ def process_event(session: Session, event_id: UUID) -> ProcessResult:
         if event is None:
             raise PermanentJobError("job disappeared during processing")
         handler(session, event)
+        if event.event_type == "crm.sync_requested.v1":
+            notify_roles(
+                session,
+                organization_id=event.organization_id,
+                notification_type="crm_sync_succeeded",
+                severity="success",
+                title="CRM sync succeeded",
+                summary="The handoff was verified in the configured CRM.",
+                action_url="/settings/integrations",
+                dedupe_key=f"crm-sync-success:{event.event_id}",
+            )
         event.state = "completed"
         event.next_attempt_at = None
         event.last_error_code = None
@@ -272,6 +284,17 @@ def process_event(session: Session, event_id: UUID) -> ProcessResult:
             )
             if source:
                 source.extraction_status = failed.state
+        if failed.event_type == "crm.sync_requested.v1" and failed.state == "action_required":
+            notify_roles(
+                session,
+                organization_id=failed.organization_id,
+                notification_type="crm_sync_action_required",
+                severity="error",
+                title="CRM sync needs attention",
+                summary="The bounded CRM retry policy was exhausted or rejected.",
+                action_url="/settings/integrations",
+                dedupe_key=f"crm-sync-failed:{failed.event_id}",
+            )
         session.commit()
         retry_after = None
         if failed.next_attempt_at is not None:

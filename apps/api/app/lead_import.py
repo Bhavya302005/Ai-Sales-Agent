@@ -31,6 +31,7 @@ from app.db import get_session
 from app.discovery.connectors import FetchedSource, SourceCandidate
 from app.discovery.ingestion import ingest_source
 from app.extraction.service import extract_source
+from app.notifications import notify_roles
 from app.persistence.models import (
     AuditLog,
     Campaign,
@@ -39,6 +40,7 @@ from app.persistence.models import (
     Contact,
     SourceDocument,
 )
+from app.rate_limits import enforce_rate_limit
 
 router = APIRouter(prefix="/api/v1/leads", tags=["lead-import"])
 MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -114,6 +116,8 @@ def _validate_row(row: dict[str, Any], index: int) -> dict[str, str]:
 
 
 def _configured_test_number(settings: Settings) -> str | None:
+    if settings.voice_transport == "omnidim" and settings.omnidim_test_to_number:
+        return settings.omnidim_test_to_number.get_secret_value()
     return (
         settings.twilio_test_to_number.get_secret_value()
         if settings.twilio_test_to_number
@@ -189,6 +193,9 @@ async def import_leads(
 ) -> LeadImportResponse:
     if auth.role not in {"owner", "operator"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+    enforce_rate_limit(
+        session, identity=f"{auth.organization_id}:{auth.user_id}", category="lead-import", limit=5
+    )
     campaign = session.scalar(
         select(Campaign).where(
             Campaign.organization_id == auth.organization_id,
@@ -282,7 +289,13 @@ async def import_leads(
                 display_name=row["contact_name"] or "Imported contact",
                 channel="phone",
                 identifier_encrypted_ref=(
-                    "env:TWILIO_TEST_TO_NUMBER" if is_test_number else "redacted:client_import"
+                    (
+                        "env:OMNIDIM_TEST_TO_NUMBER"
+                        if settings.voice_transport == "omnidim"
+                        else "env:TWILIO_TEST_TO_NUMBER"
+                    )
+                    if is_test_number
+                    else "redacted:client_import"
                 ),
                 identifier_hash=phone_hash,
                 verification_status="verified" if is_test_number else "unverified",
@@ -343,6 +356,16 @@ async def import_leads(
                 request_id=request.state.request_id,
             )
         )
+    notify_roles(
+        session,
+        organization_id=auth.organization_id,
+        notification_type="lead_import_completed",
+        severity="success" if imported else "warning",
+        title="Lead import processed",
+        summary=f"Imported {imported}; duplicates {duplicates}; rejected {len(errors)}.",
+        action_url="/campaigns",
+        dedupe_key=f"lead-import:{request.state.request_id}",
+    )
     session.commit()
     return LeadImportResponse(
         received=len(rows),

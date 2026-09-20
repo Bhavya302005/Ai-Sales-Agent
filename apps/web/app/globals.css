@@ -271,8 +271,10 @@ blockquote { margin: 34px 0; color: #e9fff1; font-family: Georgia, serif; font-s
 .campaign-list { display: grid; gap: 16px; }
 .campaign-create-panel { margin-bottom: 18px; padding: 26px 28px; border: 1px solid rgba(121, 242, 176, .25); border-radius: 20px; background: var(--panel); }
 .campaign-create-panel h2 { margin: 7px 0 0; }
-.campaign-create-form { grid-template-columns: 1.4fr 1fr 1fr 1fr .6fr .7fr auto; margin: 22px 0 0; }
+.campaign-create-form { grid-template-columns: 1.3fr 1fr 1fr 1fr .55fr .65fr .7fr auto; }
 .campaign-create-form .primary-button { margin: 0; }
+.campaign-run { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.campaign-run form { display: flex; gap: 8px; }
 .lead-upload-form { display: flex; align-items: end; justify-content: flex-end; gap: 14px; margin-top: 18px; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; }
 .lead-upload-form label { display: grid; gap: 8px; color: var(--muted); font-size: 11px; }
 .lead-upload-form input { color: var(--muted); }
@@ -296,4 +298,29 @@ blockquote { margin: 34px 0; color: #e9fff1; font-family: Georgia, serif; font-s
 @media (max-width: 760px) {
   .source-import-panel { align-items: stretch; flex-direction: column; }
   .source-card dl { grid-template-columns: 1fr; }
+}
+.operations-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.operations-section { margin-top: 18px; }
+.operations-list { display: grid; gap: 14px; }
+.operation-card { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
+.operation-card h2 { margin: 7px 0; }
+.operation-card p { color: var(--muted); }
+.operation-actions { display: flex; align-items: center; gap: 14px; }
+.operation-actions .secondary-button { text-decoration: none; }
+.severity-warning, .severity-error { border-color: rgba(255, 212, 121, .3); }
+.member-row { display: grid; grid-template-columns: 1fr 150px 150px auto; align-items: center; gap: 12px; padding: 15px 0; border-top: 1px solid var(--line); }
+.member-row select, .callback-form input, .hubspot-import-form input, .hubspot-import-form select, .hubspot-import-form textarea { padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: #0b1712; color: var(--ink); }
+.audit-list { display: grid; margin-top: 20px; }
+.audit-list div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; padding: 14px 0; border-top: 1px solid var(--line); }
+.audit-list small { grid-column: 1 / -1; color: var(--muted); }
+.callback-form { display: flex; align-items: center; gap: 10px; }
+.hubspot-import-form { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.hubspot-import-form label { display: grid; gap: 8px; color: var(--muted); font-size: 12px; }
+.hubspot-import-form .primary-button { justify-self: start; }
+.consent-check { display: flex !important; grid-template-columns: auto 1fr; align-items: center; }
+@media (max-width: 900px) {
+  .operations-grid, .hubspot-import-form { grid-template-columns: 1fr; }
+  .operation-card { align-items: flex-start; flex-direction: column; }
+  .member-row { grid-template-columns: 1fr 1fr; }
+  .callback-form { align-items: stretch; flex-direction: column; }
 }

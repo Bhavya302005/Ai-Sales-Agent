@@ -24,8 +24,28 @@ export async function createCampaign(formData: FormData) {
       timezone: String(formData.get("timezone") ?? "Asia/Kolkata"),
       recurrence: String(formData.get("recurrence") ?? "once"),
       max_attempts: Number(formData.get("max_attempts") ?? 1),
+      retry_delay_minutes: Number(formData.get("retry_delay_minutes") ?? 60),
       daily_budget_inr: Number(formData.get("daily_budget_inr") ?? 500),
     }),
+  });
+  revalidatePath("/campaigns");
+}
+
+export async function processDueCampaigns() {
+  await apiFetch("/api/v1/campaigns/process-due", { method: "POST" });
+  revalidatePath("/campaigns");
+  revalidatePath("/notifications");
+}
+
+export async function updateCampaignRun(formData: FormData) {
+  const campaignId = id(formData, "campaign_id");
+  const runId = id(formData, "run_id");
+  const state = String(formData.get("state") ?? "");
+  if (!["completed", "cancelled"].includes(state)) throw new Error("Invalid run state");
+  await apiFetch(`/api/v1/campaigns/${campaignId}/runs/${runId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state }),
   });
   revalidatePath("/campaigns");
 }
@@ -73,6 +93,8 @@ export async function requestPstnCall(formData: FormData) {
   const campaignId = id(formData, "campaign_id");
   const leadId = id(formData, "lead_id");
   const contactId = id(formData, "contact_id");
+  const transport = String(formData.get("transport") ?? "");
+  if (!["twilio", "omnidim"].includes(transport)) throw new Error("Invalid PSTN provider");
   if (formData.get("consent_attested") !== "on") {
     throw new Error("Confirm the test participant's PSTN consent first");
   }
@@ -87,7 +109,7 @@ export async function requestPstnCall(formData: FormData) {
       "Content-Type": "application/json",
       "Idempotency-Key": String(formData.get("idempotency_key") ?? ""),
     },
-    body: JSON.stringify({ campaign_id: campaignId, lead_id: leadId, contact_id: contactId, transport: "twilio" }),
+    body: JSON.stringify({ campaign_id: campaignId, lead_id: leadId, contact_id: contactId, transport }),
   });
   revalidatePath("/campaigns");
 }

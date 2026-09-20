@@ -4,7 +4,7 @@ import { getCallDetail } from "@/lib/api";
 
 import { BrowserCallSession } from "./browser-call-session";
 import { callFailureMessage } from "./call-status";
-import { syncHandoffToCrm } from "./actions";
+import { refreshProviderCall, syncHandoffToCrm } from "./actions";
 
 export default async function CallPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,18 +15,18 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
       <Link className="back-link compact" href="/campaigns">← Campaign eligibility</Link>
       <header className="page-header">
         <div>
-          <div className="eyebrow">Consent-gated {call.transport === "twilio" ? "PSTN" : "browser"} call</div>
+          <div className="eyebrow">Consent-gated {call.transport === "browser" ? "browser" : "PSTN"} call</div>
           <h1 className="page-title">AI qualification session</h1>
         </div>
         <span className="mode-badge">{call.state}</span>
       </header>
       {call.state === "eligible" && call.transport === "browser" ? (
         <BrowserCallSession callId={call.id} maxDuration={call.max_duration_seconds} />
-      ) : call.transport === "twilio" && ["eligible", "connecting", "active", "ending"].includes(call.state) ? (
+      ) : ["twilio", "omnidim"].includes(call.transport) && ["eligible", "connecting", "active", "ending"].includes(call.state) ? (
         <section className="empty-panel">
           <h2>{call.state === "eligible" ? "Ready to place the real call." : "Real test call is in progress."}</h2>
-          <p>Twilio status: {call.state}. Audio is processed live and is not recorded.</p>
-          <Link className="secondary-button" href={`/calls/${call.id}`}>Refresh status</Link>
+          <p>{call.transport === "omnidim" ? "OmniDimension" : "Twilio"} status: {call.state}. Audio recording is disabled in this application.</p>
+          {call.transport === "omnidim" ? <form action={refreshProviderCall}><input name="call_id" type="hidden" value={call.id} /><button className="secondary-button" type="submit">Refresh provider result</button></form> : <Link className="secondary-button" href={`/calls/${call.id}`}>Refresh status</Link>}
         </section>
       ) : call.state === "completed" ? (
         <div className="call-detail-grid">

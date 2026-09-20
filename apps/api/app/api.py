@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.demo_ids import ORGANIZATION_ID, USER_ID
 from app.persistence.models import Workspace
+from app.rate_limits import enforce_rate_limit
 
 router = APIRouter(prefix="/api/v1")
 
@@ -38,9 +39,20 @@ class WorkspaceResponse(BaseModel):
 
 
 @router.post("/auth/dev-session", response_model=DevSessionResponse)
-def create_dev_session(settings: Annotated[Settings, Depends(get_settings)]) -> DevSessionResponse:
+def create_dev_session(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+    session: Annotated[Session, Depends(get_session)],
+) -> DevSessionResponse:
     if settings.app_env not in {"development", "test"}:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    enforce_rate_limit(
+        session,
+        identity=request.client.host if request.client else "unknown",
+        category="dev-session",
+        limit=10,
+    )
+    session.commit()
     token = create_access_token(
         user_id=USER_ID,
         organization_id=ORGANIZATION_ID,
@@ -69,4 +81,3 @@ def current_workspace(
     if workspace is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
     return WorkspaceResponse.model_validate(workspace)
-

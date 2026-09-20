@@ -4,6 +4,7 @@ from uuid import UUID
 from celery import Celery
 from sqlalchemy.orm import Session
 
+from app.campaign_ops import process_due_campaigns
 from app.config import get_settings
 from app.db import get_engine
 from app.jobs.service import due_event_ids, process_event
@@ -15,6 +16,12 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
 )
+celery_app.conf.beat_schedule = {
+    "campaigns-process-due-every-minute": {
+        "task": "campaigns.process_due",
+        "schedule": 60.0,
+    },
+}
 
 
 @celery_app.task(name="system.ping")  # type: ignore[untyped-decorator]
@@ -47,3 +54,10 @@ def process_due_outbox() -> int:
     for event_id in event_ids:
         process_outbox_event.delay(str(event_id))
     return len(event_ids)
+
+
+@celery_app.task(name="campaigns.process_due")  # type: ignore[untyped-decorator]
+def process_due_campaign_runs() -> dict[str, int]:
+    with Session(get_engine()) as session:
+        result = process_due_campaigns(session)
+    return result.model_dump()

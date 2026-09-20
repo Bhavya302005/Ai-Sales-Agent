@@ -19,6 +19,7 @@ from app.persistence.models import (
     Contact,
     IdempotencyRecord,
     Lead,
+    OrganizationControl,
     Product,
     ProductVersion,
     Suppression,
@@ -62,7 +63,7 @@ def request_call(
     lead_id: UUID,
     contact_id: UUID,
     campaign_id: UUID,
-    transport: Literal["browser", "twilio"] = "browser",
+    transport: Literal["browser", "twilio", "omnidim"] = "browser",
     idempotency_key: str,
     settings: Settings,
     now: datetime | None = None,
@@ -257,6 +258,26 @@ def request_call(
             configured,
             "Twilio and the public HTTPS voice URL must be configured.",
         )
+    elif transport == "omnidim":
+        check(
+            "transport_enabled",
+            settings.voice_transport == "omnidim",
+            "OmniDimension is not the selected voice transport.",
+        )
+        check(
+            "outbound_pstn_enabled",
+            settings.enable_outbound_pstn,
+            "Outbound PSTN is disabled by configuration.",
+        )
+        check(
+            "provider_configured",
+            bool(
+                settings.omnidim_api_key
+                and settings.omnidim_agent_id
+                and settings.omnidim_test_to_number
+            ),
+            "OmniDimension API key, agent, and consenting test number must be configured.",
+        )
     reservation = Decimal(
         str(
             settings.estimated_browser_call_cost_inr
@@ -280,7 +301,15 @@ def request_call(
     )
     concurrency_ok = active_count < settings.max_concurrent_calls
     check("concurrency_slot", concurrency_ok, "No call concurrency slot is available.")
-    check("kill_switch", not settings.calls_kill_switch, "The global call kill switch is active.")
+    persistent_control = session.scalar(
+        select(OrganizationControl).where(
+            OrganizationControl.organization_id == organization_id
+        )
+    )
+    calls_paused = settings.calls_kill_switch or bool(
+        persistent_control and persistent_control.calls_paused
+    )
+    check("kill_switch", not calls_paused, "Calling is paused by an administrator.")
     eligible = all(bool(item["passed"]) for item in checks)
     attempt_id = uuid5(
         NAMESPACE_URL,

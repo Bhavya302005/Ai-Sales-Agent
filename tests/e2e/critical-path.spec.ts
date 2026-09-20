@@ -114,10 +114,10 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
   await expect(page).toHaveURL(/\/leads$/);
   await expect(page.getByRole("heading", { name: "Evidence before outreach." })).toBeVisible();
 
-  await page.getByRole("link", { name: /ERP workloads must be migrated/ }).click();
+  await page.getByRole("link", { name: /Implement SharePoint Online/ }).click();
   await expect(page.getByRole("heading", { name: "What the source actually says" })).toBeVisible();
   await expect(page.locator(".evidence-card blockquote")).toContainText(
-    "Narmada Manufacturing is seeking",
+    "Sapphire Legal & Advisory is seeking",
   );
   await expect(page.getByRole("heading", { name: "Still unknown" })).toBeVisible();
   await expect(page.getByText("Approved knowledge only")).toBeVisible();
@@ -132,7 +132,7 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
   await page.getByRole("button", { name: "Start AI call" }).click();
   await expect(page.locator(".voice-results").getByText(/Hello, I’m the AI assistant/)).toBeVisible();
 
-  await say(page, "yes", /which workloads and business processes are in scope/i);
+  await say(page, "yes", /which teams, content, and business processes are in scope/i);
   await say(
     page,
     "Finance and inventory are in scope because month-end close is too slow",
@@ -177,6 +177,38 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
   await page.getByRole("button", { name: "Sync to mock CRM" }).click();
   await expect(page.getByText(/CRM: mock · succeeded/)).toBeVisible();
   await expect(page.getByText(/mock:\/\/crm\/tasks\//)).toBeVisible();
+
+  await page.locator(".sidebar").getByRole("link", { name: "Callbacks" }).click();
+  await expect(page.getByRole("heading", { name: "Callbacks" })).toBeVisible();
+  await page.locator('input[name="scheduled_for"]').fill("2099-01-01T10:00");
+  await page.getByRole("button", { name: "Schedule" }).click();
+  await expect(page.getByText(/Scheduled/)).toBeVisible();
+  await page.getByRole("button", { name: "Mark completed" }).click();
+  await expect(page.getByText("completed", { exact: true })).toBeVisible();
+
+  await page.locator(".sidebar").getByRole("link", { name: /Notifications/ }).click();
+  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
+  await expect(page.getByText("Follow-up requested")).toBeVisible();
+  await page.getByRole("button", { name: "Mark all read" }).click();
+  await expect(page.locator(".sidebar").getByRole("link", { name: "Notifications" })).toBeVisible();
+});
+
+test("owner controls and due campaign processing remain operator-driven", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Continue as demo owner" }).click();
+  await expect(page).toHaveURL(/\/leads$/);
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
+  await page.getByRole("button", { name: "Pause all calls" }).click();
+  await expect(page.getByRole("heading", { name: "Calling paused" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume calls" }).click();
+  await expect(page.getByRole("heading", { name: "Calling available" })).toBeVisible();
+
+  await page.goto("/campaigns");
+  await page.getByRole("button", { name: "Process due campaigns" }).click();
+  await expect(page.getByText(/ready|scheduled/).first()).toBeVisible();
+  await page.goto("/notifications");
+  await expect(page.getByText("Campaign is ready")).toBeVisible();
 });
 
 test("protected workspace routes return to login after sign-out", async ({ page }) => {

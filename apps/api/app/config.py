@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     exa_discovery_timeout_seconds: int = Field(default=25, ge=5, le=60)
     source_allowed_hosts: str = ""
     source_max_bytes: int = Field(default=1_000_000, ge=10_000, le=5_000_000)
-    voice_transport: Literal["browser", "twilio", "exotel"] = "browser"
+    voice_transport: Literal["browser", "twilio", "omnidim", "exotel"] = "browser"
     crm_mode: Literal["mock", "hubspot"] = "mock"
     async_mode: Literal["inline", "celery"] = "inline"
     record_audio: bool = False
@@ -48,17 +48,26 @@ class Settings(BaseSettings):
     twilio_from_number: SecretStr | None = None
     twilio_test_to_number: SecretStr | None = None
     twilio_conversation_language: Literal["en-IN", "hi-IN"] = "en-IN"
-    hubspot_access_token: str | None = None
+    omnidim_api_key: SecretStr | None = None
+    omnidim_agent_id: int | None = Field(default=None, ge=1)
+    omnidim_from_number_id: int | None = Field(default=None, ge=1)
+    omnidim_test_to_number: SecretStr | None = None
+    omnidim_api_base_url: str = "https://backend.omnidim.io/api/v1"
+    hubspot_access_token: SecretStr | None = None
+    web_origin: str = "http://localhost:3000"
     hubspot_api_version: Literal["2026-03"] = "2026-03"
 
     @model_validator(mode="after")
     def validate_selected_modes(self) -> "Settings":
         if self.discovery_mode == "live" and not self.source_allowed_hosts.strip():
             raise ValueError("DISCOVERY_MODE=live requires SOURCE_ALLOWED_HOSTS")
-        if self.voice_transport in {"twilio", "exotel"} and not self.enable_outbound_pstn:
+        if (
+            self.voice_transport in {"twilio", "omnidim", "exotel"}
+            and not self.enable_outbound_pstn
+        ):
             raise ValueError("PSTN transport requires ENABLE_OUTBOUND_PSTN=true")
         if self.voice_transport == "twilio":
-            required = {
+            required: dict[str, object] = {
                 "PUBLIC_VOICE_BASE_URL": self.public_voice_base_url,
                 "TWILIO_ACCOUNT_SID": self.twilio_account_sid,
                 "TWILIO_AUTH_TOKEN": self.twilio_auth_token,
@@ -82,6 +91,25 @@ class Settings(BaseSettings):
                 or parsed_voice_url.fragment
             ):
                 raise ValueError("PUBLIC_VOICE_BASE_URL must be an HTTPS origin without a path")
+        if self.voice_transport == "omnidim":
+            required = {
+                "OMNIDIM_API_KEY": self.omnidim_api_key,
+                "OMNIDIM_AGENT_ID": self.omnidim_agent_id,
+                "OMNIDIM_TEST_TO_NUMBER": self.omnidim_test_to_number,
+            }
+            missing = [name for name, value in required.items() if not value]
+            if missing:
+                raise ValueError(f"OmniDimension transport requires {', '.join(missing)}")
+            parsed_omnidim_url = urlparse(self.omnidim_api_base_url)
+            if (
+                parsed_omnidim_url.scheme != "https"
+                or parsed_omnidim_url.hostname not in {"backend.omnidim.io", "omnidim.io"}
+                or parsed_omnidim_url.username
+                or parsed_omnidim_url.password
+                or parsed_omnidim_url.query
+                or parsed_omnidim_url.fragment
+            ):
+                raise ValueError("OMNIDIM_API_BASE_URL must be an official HTTPS API URL")
         if self.crm_mode == "hubspot" and not self.hubspot_access_token:
             raise ValueError("CRM_MODE=hubspot requires HUBSPOT_ACCESS_TOKEN")
         if self.dialogue_mode == "anthropic" and not self.anthropic_api_key:
