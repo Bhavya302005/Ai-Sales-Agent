@@ -17,6 +17,7 @@ export type Workspace = {
 
 export type LeadSummary = {
   id: string;
+  product_version_id: string;
   lifecycle: string;
   company_name: string | null;
   normalized_need: string;
@@ -169,6 +170,7 @@ export type DiscoveryResult = {
   company: string | null;
   location: string | null;
   published_at: string | null;
+  observed_at: string;
   original_url: string;
   source: string;
   opportunity_type: string;

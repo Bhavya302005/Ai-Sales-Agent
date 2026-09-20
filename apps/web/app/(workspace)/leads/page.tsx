@@ -1,13 +1,37 @@
 import Link from "next/link";
 
-import { getLeads } from "@/lib/api";
+import { getLeads, getOffering } from "@/lib/api";
+import { confirmedBusinessProfile } from "@/lib/business-profile";
 import { diagnosticsEnabled } from "@/lib/runtime";
 
 export default async function LeadsPage() {
-  const leads = await getLeads();
+  const [leads, offering] = await Promise.all([getLeads(), getOffering()]);
+  const profile = confirmedBusinessProfile(offering);
+  if (!profile) {
+    return (
+      <>
+        <header className="page-header">
+          <div>
+            <div className="eyebrow">Opportunity review</div>
+            <h1 className="page-title">Set up your business first</h1>
+          </div>
+          <span className="knowledge-state blocked">Business profile required</span>
+        </header>
+        <section className="empty-panel">
+          <h2>No leads are ready for review.</h2>
+          <p>Complete business setup before discovering and qualifying matching opportunities.</p>
+          <Link className="primary-button action-link" href="/onboarding">Complete business setup</Link>
+        </section>
+      </>
+    );
+  }
   const visibleLeads = diagnosticsEnabled()
     ? leads
-    : leads.filter((lead) => !lead.source_url.startsWith("fixture://"));
+    : leads.filter(
+        (lead) =>
+          lead.product_version_id === profile.id &&
+          !lead.source_url.startsWith("fixture://"),
+      );
   return (
     <>
       <header className="page-header">

@@ -42,3 +42,4 @@ Status values: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`.
 | P05 | IN_PROGRESS | Record the final 3–5 minute demo, review it for sensitive data and claim accuracy, then submit only with explicit user authorization |
 | P06 | DONE | Default localhost follows the production-MVP journey; test-only controls are feature-flagged, sample data is honestly labelled, and all browser/code gates pass |
 | P07 | DONE | Futurrizon framed/JS-shell analysis succeeds with bounded same-site metadata fallback; legacy fixture content is hidden by default; desktop/mobile control-size and overflow audits pass |
+| P08 | DONE | Discovery and lead review require a confirmed profile; stale results are filtered by active profile/version and browser verification removed pre-onboarding Exa content |

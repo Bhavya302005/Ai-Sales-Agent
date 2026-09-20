@@ -26,6 +26,7 @@ class DiscoveryResult(BaseModel):
     company: str | None
     location: str | None
     published_at: datetime | None
+    observed_at: datetime
     original_url: str
     source: str
     opportunity_type: str
@@ -69,6 +70,7 @@ def _result(document: SourceDocument) -> DiscoveryResult:
         company=document.discovery_company,
         location=document.discovery_location,
         published_at=document.published_at,
+        observed_at=document.observed_at,
         original_url=document.canonical_url,
         source=document.source_type,
         opportunity_type=document.opportunity_type or "weak_signal",

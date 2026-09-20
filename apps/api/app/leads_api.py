@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/v1/leads", tags=["leads"])
 def _summary(record: LeadRecord) -> LeadSummaryResponse:
     return LeadSummaryResponse(
         id=record.lead.id,
+        product_version_id=record.lead.product_version_id,
         lifecycle=record.lead.lifecycle,
         company_name=record.company.normalized_name if record.company else None,
         normalized_need=record.requirement.normalized_need,

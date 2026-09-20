@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { getDiscovery, getDiscoveryStatus } from "@/lib/api";
+import { getDiscovery, getDiscoveryStatus, getOffering } from "@/lib/api";
+import { confirmedBusinessProfile } from "@/lib/business-profile";
 import { diagnosticsEnabled } from "@/lib/runtime";
 
 import { importDiscoveryDemo, refreshLiveDiscovery } from "./actions";
@@ -24,11 +25,39 @@ export default async function SourcesPage({ searchParams }: { searchParams: Sear
   if (filters.source) query.set("source", filters.source);
   if (filters.q) query.set("q", filters.q);
   if (filters.actionable) query.set("actionable", filters.actionable);
-  const [results, status] = await Promise.all([getDiscovery(query.toString()), getDiscoveryStatus()]);
+  const [results, status, offering] = await Promise.all([
+    getDiscovery(query.toString()),
+    getDiscoveryStatus(),
+    getOffering(),
+  ]);
   const showDiagnostics = diagnosticsEnabled();
+  const profile = confirmedBusinessProfile(offering);
+  if (!profile) {
+    return (
+      <>
+        <header className="page-header">
+          <div>
+            <div className="eyebrow">Discover with provenance</div>
+            <h1 className="page-title">Set up your business first</h1>
+          </div>
+          <span className="knowledge-state blocked">Business profile required</span>
+        </header>
+        <section className="empty-panel">
+          <h2>No discovery has been started.</h2>
+          <p>Confirm what your company sells and who it serves before finding matching opportunities.</p>
+          <Link className="primary-button action-link" href="/onboarding">Complete business setup</Link>
+        </section>
+      </>
+    );
+  }
+  const profileCreatedAt = new Date(profile.created_at).getTime();
   const visibleResults = showDiagnostics
     ? results
-    : results.filter((item) => !item.original_url.startsWith("fixture://"));
+    : results.filter(
+        (item) =>
+          !item.original_url.startsWith("fixture://") &&
+          new Date(item.observed_at).getTime() >= profileCreatedAt,
+      );
   const direct = visibleResults.filter((item) => item.actionable);
   const signals = visibleResults.filter((item) => !item.actionable);
   return (

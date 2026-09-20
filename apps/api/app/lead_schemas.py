@@ -9,6 +9,7 @@ from app.briefing.schemas import PreCallBriefResponse
 
 class LeadSummaryResponse(BaseModel):
     id: UUID
+    product_version_id: UUID
     lifecycle: str
     company_name: str | None
     normalized_need: str
