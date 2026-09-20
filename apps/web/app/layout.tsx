@@ -1,5 +1,21 @@
 import type { Metadata, Viewport } from "next";
+import { Albert_Sans, Fragment_Mono } from "next/font/google";
+
 import "./globals.css";
+
+const albertSans = Albert_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-albert-sans",
+  display: "swap",
+});
+
+const fragmentMono = Fragment_Mono({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-fragment-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Evidence-first Sales Agent",
@@ -12,12 +28,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#07100d",
+  themeColor: "#f4f2ee",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html className={`${albertSans.variable} ${fragmentMono.variable}`} lang="en">
       <body>{children}</body>
     </html>
   );

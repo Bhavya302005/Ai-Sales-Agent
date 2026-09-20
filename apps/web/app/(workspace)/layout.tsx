@@ -4,7 +4,9 @@ import { signOut } from "@/app/login/actions";
 import { getNotifications, getViewer } from "@/lib/api";
 import { diagnosticsEnabled } from "@/lib/runtime";
 
-const primaryNavigation = [
+import { PrimaryNav, type NavEntry } from "./primary-nav";
+
+const primaryNavigation: readonly [label: string, href: string][] = [
   ["Business profile", "/onboarding"],
   ["Discover", "/sources"],
   ["Leads", "/leads"],
@@ -12,39 +14,46 @@ const primaryNavigation = [
   ["Analytics", "/analytics"],
   ["Callbacks", "/callbacks"],
   ["Notifications", "/notifications"],
-  ["Integrations", "/settings/integrations"],
   ["Administration", "/admin"],
-] as const;
+];
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const [{ me, workspace }, notifications] = await Promise.all([getViewer(), getNotifications()]);
-  const navigation = diagnosticsEnabled()
+  const withDiagnostics = diagnosticsEnabled()
     ? [...primaryNavigation.slice(0, 4), ["Voice diagnostics", "/voice-lab"] as const, ...primaryNavigation.slice(4)]
     : primaryNavigation;
+  const navigation: NavEntry[] = withDiagnostics.map(([label, href]) => ({
+    label,
+    href,
+    badge: label === "Notifications" ? notifications.unread_count : undefined,
+  }));
   return (
     <div className="product-shell">
       <aside className="sidebar">
-        <Link className="brand" href="/onboarding">
-          Signal<span>Path</span>
-        </Link>
-        <div className="workspace-label">
-          <span>Workspace</span>
-          <strong>{workspace.name}</strong>
+        <div className="sidebar-top">
+          <Link className="brand" href="/onboarding">
+            Signal<span>Path</span>
+          </Link>
+          <div className="workspace-label">
+            <span>Workspace</span>
+            <strong>{workspace.name}</strong>
+          </div>
         </div>
-        <nav aria-label="Primary">
-          {navigation.map(([label, href]) => (
-            <Link className="nav-link" href={href} key={href}>
-              {label}{label === "Notifications" && notifications.unread_count ? ` (${notifications.unread_count})` : ""}
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebar-footer">
-          <span>{me.role}</span>
-          <form action={signOut}>
-            <button className="text-button" type="submit">
-              Sign out
-            </button>
-          </form>
+        <PrimaryNav navigation={navigation} />
+        <div className="sidebar-bottom">
+          <div className="sidebar-promo">
+            <p className="sidebar-promo-title">Evidence-first calling</p>
+            <p className="sidebar-promo-copy">Every call stays consent-gated, transcript-backed, and human-owned.</p>
+          </div>
+          <PrimaryNav navigation={[{ label: "Integrations", href: "/settings/integrations" }]} />
+          <div className="sidebar-footer">
+            <span>{me.role}</span>
+            <form action={signOut}>
+              <button className="text-button" type="submit">
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
       <main className="workspace-main">
