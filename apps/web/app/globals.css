@@ -665,7 +665,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   letter-spacing: normal;
   text-transform: none;
 }
-.knowledge-form textarea:focus, .approval-form textarea:focus { border-color: var(--ink); outline: none; }
+.knowledge-form textarea:focus, .approval-form textarea:focus { border-color: var(--ink); }
 .wide-field { grid-column: 1 / -1; }
 .form-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-top: 8px; }
 .form-submit-row p { max-width: 600px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
