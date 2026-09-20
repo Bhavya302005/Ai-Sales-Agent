@@ -9,9 +9,11 @@ import sys
 import os
 from pathlib import Path
 
-# Make sure the apps/api directory is on the Python path
-_api_root = Path(__file__).resolve().parent.parent / "apps" / "api"
-sys.path.insert(0, str(_api_root))
+# Make sure the apps/api and packages/domain/src directories are on the Python path
+_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_root / "apps" / "api"))
+sys.path.insert(0, str(_root / "packages" / "domain" / "src"))
+
 
 # Load .env for local development
 _env_file = Path(__file__).resolve().parents[1] / ".env"
