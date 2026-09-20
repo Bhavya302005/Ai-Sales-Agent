@@ -34,6 +34,7 @@ from app.knowledge_schemas import (
 )
 from app.persistence.models import AuditLog, ModelRun, Product, ProductVersion
 from app.rate_limits import enforce_rate_limit
+from app.jobs.service import enqueue_once, process_event
 
 router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"])
 QUALIFICATION_KEY = "_qualification_questions"
@@ -149,15 +150,21 @@ async def analyze_profile(
         profile_sources.append(
             make_source("Business details supplied by user", "user_input", supplied)
         )
+    website_warning: str | None = None
     try:
         if company_url.strip():
-            canonical_url, website_text = await run_in_threadpool(
-                fetch_company_website, company_url, settings
-            )
-            source_texts.append(website_text)
-            profile_sources.append(
-                make_source(canonical_url or company_url, "website", website_text)
-            )
+            try:
+                canonical_url, website_text = await run_in_threadpool(
+                    fetch_company_website, company_url, settings
+                )
+                source_texts.append(website_text)
+                profile_sources.append(
+                    make_source(canonical_url or company_url, "website", website_text)
+                )
+            except BusinessProfileError as web_exc:
+                # Website scraping failed (JS-only SPA, frameset, no readable text, etc.)
+                # Proceed using the user-supplied business description and services only.
+                website_warning = str(web_exc)
         total_bytes = 0
         for upload in uploads:
             content = await upload.read()
@@ -252,7 +259,7 @@ async def analyze_profile(
             BusinessProfileSource.model_validate(item.model_dump()) for item in result.sources
         ],
         analysis_method=result.method,
-        warning=result.warning,
+        warning=website_warning or result.warning,
         analysis_token=analysis_token,
     )
 
@@ -364,6 +371,23 @@ def confirm_profile(
     )
     session.commit()
     session.refresh(version)
+    # ── Auto-trigger live discovery for the freshly approved product version ──
+    # Enqueue idempotently so re-confirming the profile doesn't double-fire.
+    try:
+        queued = enqueue_once(
+            session,
+            organization_id=auth.organization_id,
+            actor_id=auth.user_id,
+            route=f"discovery:auto:{version.id}",
+            idempotency_key=f"auto-discover-{version.id}",
+            event_type="lead.discovery_requested.v1",
+            aggregate_type="product_version",
+            aggregate_id=version.id,
+            payload_ref=f"product_version:{version.id}",
+        )
+        process_event(session, queued.event.event_id)
+    except Exception:  # noqa: BLE001 — discovery is best-effort, never block profile save
+        pass
     return _version_response(version, product.active_version_id)
 
 

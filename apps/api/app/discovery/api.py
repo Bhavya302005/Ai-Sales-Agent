@@ -1,4 +1,5 @@
 from datetime import datetime
+import threading
 from typing import Annotated
 from uuid import UUID
 
@@ -9,8 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.auth import Auth
 from app.config import Settings, get_settings
-from app.db import get_session
+from app.db import get_session, get_engine
 from app.discovery.ingestion import ingest_source
+from app.discovery.phone_enricher import enrich_contact
 from app.discovery.service import DiscoveryItem, discover_with_exa, load_demo_snapshot
 from app.jobs.service import enqueue_once, process_event
 from app.persistence.models import AuditLog, Product, ProductVersion, SourceDocument
@@ -32,6 +34,11 @@ class DiscoveryResult(BaseModel):
     provider_metadata: dict[str, object]
     actionable: bool
     extraction_status: str
+    # ── Contact enrichment fields (populated asynchronously) ──
+    best_phone: str | None = None
+    best_email: str | None = None
+    contact_phones: list[str] = []
+    contact_emails: list[str] = []
 
 
 class DiscoveryImportResponse(BaseModel):
@@ -55,6 +62,7 @@ def _require_editor(auth: Auth) -> None:
 
 
 def _result(document: SourceDocument) -> DiscoveryResult:
+    meta = document.provider_metadata or {}
     return DiscoveryResult(
         id=document.id,
         title=document.discovery_title or "Untitled public opportunity",
@@ -66,9 +74,13 @@ def _result(document: SourceDocument) -> DiscoveryResult:
         opportunity_type=document.opportunity_type or "weak_signal",
         evidence_excerpt=document.evidence_excerpt,
         rights_note=document.rights_note,
-        provider_metadata=document.provider_metadata,
+        provider_metadata=meta,
         actionable=document.discovery_actionable is True,
         extraction_status=document.extraction_status,
+        best_phone=meta.get("best_phone") or None,
+        best_email=meta.get("best_email") or None,
+        contact_phones=meta.get("phones") or [],
+        contact_emails=meta.get("emails") or [],
     )
 
 
@@ -90,6 +102,34 @@ def _active_product_version(session: Session, organization_id: UUID) -> ProductV
             detail="Approve a product version before running discovery",
         )
     return version
+
+
+
+def _spawn_phone_enrichment(item: DiscoveryItem, document_id: UUID) -> None:
+    """Kick off background phone/email enrichment in a daemon thread.
+
+    Opens its own SQLAlchemy Session so it doesn't share the request-scoped
+    session, and therefore never blocks the HTTP response.
+    """
+
+    def _run() -> None:
+        try:
+            contact_data = enrich_contact(item)
+            # Write-back: open a fresh session, merge into provider_metadata
+            from sqlalchemy.orm import Session as _Session  # local import avoids cycles
+            engine = get_engine()
+            with _Session(engine) as sess:
+                doc = sess.get(SourceDocument, document_id)
+                if doc is not None:
+                    existing = dict(doc.provider_metadata or {})
+                    existing.update(contact_data)
+                    doc.provider_metadata = existing
+                    sess.commit()
+        except Exception:  # noqa: BLE001 — enrichment is best-effort
+            pass
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
 
 
 def _ingest_and_extract(
@@ -133,6 +173,10 @@ def _ingest_and_extract(
         )
         session.flush()
         process_event(session, queued.event.event_id)
+        # ── Async phone/email enrichment (non-blocking) ──────────────────
+        # Runs in a daemon thread so the HTTP response is never delayed.
+        # On completion it opens its own DB session to write back.
+        _spawn_phone_enrichment(item, ingestion.document.id)
     session.commit()
     for document in documents:
         session.refresh(document)
