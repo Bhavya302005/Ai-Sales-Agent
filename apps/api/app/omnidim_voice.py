@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
@@ -31,6 +32,8 @@ class OmniDimCallResult:
     duration_seconds: int
     estimated_cost: float | None
     sentiment: str | None
+    summary: str | None
+    recording_url: str | None
     extracted_variables: dict[str, Any]
 
 
@@ -128,6 +131,12 @@ class OmniDimClient:
                 continue
             interactions = row.get("interactions")
             variables = row.get("extracted_variables")
+            raw_report = row.get("call_report")
+            report: dict[str, Any] = raw_report if isinstance(raw_report, dict) else {}
+            summary = report.get("summary") or row.get("sentiment_analysis_details")
+            recording_url = row.get("internal_recording_url") or row.get("recording_url")
+            if not isinstance(recording_url, str) or not recording_url.startswith("https://"):
+                recording_url = None
             return OmniDimCallResult(
                 status=str(row.get("call_status") or "unknown").replace("-", "_"),
                 interactions=interactions if isinstance(interactions, list) else [],
@@ -138,13 +147,43 @@ class OmniDimClient:
                     else None
                 ),
                 sentiment=(
-                    str(row["sentiment_score"])[:100]
-                    if row.get("sentiment_score")
-                    else None
+                    str(row["sentiment_score"])[:100] if row.get("sentiment_score") else None
                 ),
+                summary=str(summary)[:2000] if summary else None,
+                recording_url=recording_url,
                 extracted_variables=variables if isinstance(variables, dict) else {},
             )
         return None
+
+    def recording(self, request_id: str) -> tuple[bytes, str] | None:
+        result = self.result(request_id)
+        if result is None or result.recording_url is None:
+            return None
+        parsed = urlparse(result.recording_url)
+        hostname = (parsed.hostname or "").lower()
+        if (
+            parsed.scheme != "https"
+            or parsed.username
+            or parsed.password
+            or not (hostname == "omnidim.io" or hostname.endswith(".omnidim.io"))
+        ):
+            raise OmniDimPermanentError("OmniDimension returned an invalid recording location")
+        try:
+            response = self._client.get(
+                result.recording_url,
+                timeout=httpx.Timeout(30, connect=5),
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise OmniDimRetryableError(
+                "OmniDimension recording is temporarily unavailable"
+            ) from exc
+        if len(response.content) > 25_000_000:
+            raise OmniDimPermanentError("OmniDimension recording exceeds the playback limit")
+        media_type = response.headers.get("content-type", "audio/mpeg").split(";", 1)[0]
+        if not media_type.startswith("audio/"):
+            media_type = "audio/mpeg"
+        return response.content, media_type
 
     def close(self) -> None:
         if self._owns_client:

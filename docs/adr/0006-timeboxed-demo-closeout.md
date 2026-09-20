@@ -1,6 +1,6 @@
 # ADR 0006: Time-boxed demo closeout
 
-- Status: Accepted
+- Status: Superseded by ADR 0007
 - Date: 2026-09-20
 
 ## Context

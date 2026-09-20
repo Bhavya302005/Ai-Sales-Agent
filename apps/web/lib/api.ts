@@ -160,6 +160,12 @@ export type DiscoveryImport = {
   results: DiscoveryResult[];
 };
 
+export type DiscoveryStatus = {
+  live_refresh_available: boolean;
+  provider: string;
+  label: string;
+};
+
 export type ExtractionResult = {
   source_id: string;
   extraction_status: string;
@@ -313,9 +319,6 @@ export type Usage = {
   average_voice_latency_ms: number | null;
   crm_retrying: number;
   crm_action_required: number;
-  plan_name: string;
-  subscription_status: string;
-  billing_mode: string;
   cost_label: string;
 };
 
@@ -469,6 +472,10 @@ export async function getSources(): Promise<SourceDocument[]> {
 
 export async function getDiscovery(query = ""): Promise<DiscoveryResult[]> {
   return apiFetch<DiscoveryResult[]>(`/api/v1/discovery/results${query ? `?${query}` : ""}`);
+}
+
+export async function getDiscoveryStatus(): Promise<DiscoveryStatus> {
+  return apiFetch<DiscoveryStatus>("/api/v1/discovery/status");
 }
 
 export async function getCampaigns(): Promise<Campaign[]> {

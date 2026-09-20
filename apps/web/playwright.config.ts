@@ -54,6 +54,7 @@ export default defineConfig({
       command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
       env: {
         API_BASE_URL: "http://127.0.0.1:8100",
+        ENABLE_DIAGNOSTIC_UI: "true",
         NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8100",
         NEXT_PUBLIC_VOICE_WS_URL: "ws://127.0.0.1:8101",
       },

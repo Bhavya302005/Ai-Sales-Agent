@@ -158,6 +158,7 @@ blockquote { margin: 34px 0; color: #e9fff1; font-family: Georgia, serif; font-s
 @media (max-width: 900px) { .voice-grid { grid-template-columns: 1fr; } }
 .call-detail-grid { display: grid; grid-template-columns: 1.35fr .65fr; align-items: start; gap: 18px; }
 .call-outcome-stack { display: grid; gap: 18px; }
+.provider-insights audio { width: 100%; margin-top: 18px; }
 .transcript-list { display: grid; margin-top: 24px; }
 .transcript-row { display: grid; grid-template-columns: 150px 1fr; gap: 20px; padding: 18px 0; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
 .transcript-row.cited { margin: 0 -12px; padding-right: 12px; padding-left: 12px; border-color: rgba(121, 242, 176, .35); background: rgba(121, 242, 176, .05); }
@@ -272,7 +273,11 @@ blockquote { margin: 34px 0; color: #e9fff1; font-family: Georgia, serif; font-s
 .campaign-list { display: grid; gap: 16px; }
 .campaign-create-panel { margin-bottom: 18px; padding: 26px 28px; border: 1px solid rgba(121, 242, 176, .25); border-radius: 20px; background: var(--panel); }
 .campaign-create-panel h2 { margin: 7px 0 0; }
-.campaign-create-form { grid-template-columns: 1.3fr 1fr 1fr 1fr .55fr .65fr .7fr auto; }
+.campaign-create-form { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+.campaign-create-form > label, .campaign-advanced-settings label { display: grid; gap: 8px; color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.campaign-advanced-settings { grid-column: 1 / -1; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); }
+.campaign-advanced-settings summary { cursor: pointer; font-size: 12px; font-weight: 700; }
+.campaign-advanced-settings > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
 .campaign-create-form .primary-button { margin: 0; }
 .campaign-run { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); }
 .campaign-run form { display: flex; gap: 8px; }
@@ -319,6 +324,7 @@ blockquote { margin: 34px 0; color: #e9fff1; font-family: Georgia, serif; font-s
 .hubspot-import-form label { display: grid; gap: 8px; color: var(--muted); font-size: 12px; }
 .hubspot-import-form .primary-button { justify-self: start; }
 .consent-check { display: flex !important; grid-template-columns: auto 1fr; align-items: center; }
+.diagnostic-action { display: flex; justify-content: flex-end; margin-top: 18px; }
 .guardrail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 22px 0 0; padding: 0; list-style: none; }
 .guardrail-list li { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font-size: 12px; }
 @media (max-width: 900px) {
@@ -339,7 +345,7 @@ blockquote { margin: 34px 0; color: #e9fff1; font-family: Georgia, serif; font-s
   .page-header { margin-bottom: 24px; }
   .lead-row { align-items: flex-start; flex-direction: column; }
   .lead-row p { width: 100%; }
-  .filter-bar, .campaign-create-form { grid-template-columns: 1fr; }
+  .filter-bar, .campaign-create-form, .campaign-advanced-settings > div { grid-template-columns: 1fr; }
   .campaign-create-form .primary-button { width: 100%; }
   .lead-upload-form { align-items: stretch; flex-direction: column; }
   .lead-upload-form select { min-width: 0; width: 100%; }

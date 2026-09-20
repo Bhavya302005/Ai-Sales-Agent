@@ -72,5 +72,6 @@ Run the existing Playwright critical journey three times from a reset before rec
 
 Roadmap/not demonstrated as complete: native Android/iOS binaries, payments/invoices, inbound calls,
 voicemail automation, predictive fraud modelling, unrestricted authenticated scraping, all-language
-coverage, and enterprise-scale scheduling. The demo shows a non-billable plan with stored usage and
-rule-based safety signals. English and Hindi are the supported demo languages.
+coverage, and enterprise-scale scheduling. The demo shows stored usage and rule-based safety
+signals. Usage is measured, but no subscription or payment UI is claimed.
+English and Hindi are the supported demo languages.

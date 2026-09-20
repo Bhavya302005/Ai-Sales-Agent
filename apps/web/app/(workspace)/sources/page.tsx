@@ -1,4 +1,7 @@
-import { getDiscovery } from "@/lib/api";
+import Link from "next/link";
+
+import { getDiscovery, getDiscoveryStatus } from "@/lib/api";
+import { diagnosticsEnabled } from "@/lib/runtime";
 
 import { importDiscoveryDemo, refreshLiveDiscovery } from "./actions";
 
@@ -21,7 +24,8 @@ export default async function SourcesPage({ searchParams }: { searchParams: Sear
   if (filters.source) query.set("source", filters.source);
   if (filters.q) query.set("q", filters.q);
   if (filters.actionable) query.set("actionable", filters.actionable);
-  const results = await getDiscovery(query.toString());
+  const [results, status] = await Promise.all([getDiscovery(query.toString()), getDiscoveryStatus()]);
+  const showDiagnostics = diagnosticsEnabled();
   const direct = results.filter((item) => item.actionable);
   const signals = results.filter((item) => !item.actionable);
   return (
@@ -31,7 +35,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Sear
           <div className="eyebrow">Discover with provenance</div>
           <h1 className="page-title">Requirements and market signals</h1>
         </div>
-        <span className="mode-badge">Verified snapshot guaranteed</span>
+        <span className={`knowledge-state ${status.live_refresh_available ? "callable" : "blocked"}`}>{status.label}</span>
       </header>
 
       {filters.provider === "failed" ? (
@@ -46,20 +50,16 @@ export default async function SourcesPage({ searchParams }: { searchParams: Sear
 
       <section className="source-import-panel">
         <div>
-          <p className="kicker">Reliable hybrid discovery</p>
-          <h2>Import the verified demo set or try live Exa</h2>
+          <p className="kicker">Opportunity discovery</p>
+          <h2>{status.live_refresh_available ? "Find new matches for your approved ICP" : "Connect a discovery provider"}</h2>
           <p>
-            Direct requirements can enter review. Job openings remain market signals and cannot
-            become call-eligible automatically.
+            Direct requirements enter review. Hiring posts and weaker signals remain market intelligence
+            and never become call-eligible automatically.
           </p>
         </div>
         <div className="source-controls">
-          <form action={importDiscoveryDemo}>
-            <button className="primary-button" type="submit">Import verified snapshot</button>
-          </form>
-          <form action={refreshLiveDiscovery}>
-            <button className="secondary-button" type="submit">Try live Exa</button>
-          </form>
+          {status.live_refresh_available ? <form action={refreshLiveDiscovery}><button className="primary-button" type="submit">Refresh opportunities</button></form> : <Link className="secondary-button" href="/settings/integrations">View integrations</Link>}
+          {showDiagnostics ? <form action={importDiscoveryDemo}><button className="text-button" type="submit">Load diagnostic snapshot</button></form> : null}
         </div>
       </section>
 
@@ -108,6 +108,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Sear
 
 function DiscoveryCard({ item }: { item: Awaited<ReturnType<typeof getDiscovery>>[number] }) {
   const live = item.source === "exa_live_search";
+  const sample = item.original_url.startsWith("fixture://");
   return (
     <article className="source-card">
       <div className="source-card-header">
@@ -116,15 +117,15 @@ function DiscoveryCard({ item }: { item: Awaited<ReturnType<typeof getDiscovery>
           <strong>{item.title}</strong>
           <small>{item.company ?? "Company unknown"} · {item.location ?? "Location unknown"}</small>
         </div>
-        <b>{live ? "Live" : "Snapshot"}</b>
+        <b>{live ? "Live" : sample ? "Sample" : "Saved"}</b>
       </div>
       <blockquote>“{item.evidence_excerpt}”</blockquote>
       <dl>
-        <div><dt>Original source</dt><dd>{item.original_url}</dd></div>
+        <div><dt>Original source</dt><dd>{sample ? "Sample opportunity · no public URL" : item.original_url}</dd></div>
         <div><dt>Published</dt><dd>{item.published_at ? new Date(item.published_at).toLocaleDateString("en-IN") : "Unknown"}</dd></div>
         <div><dt>Status</dt><dd>{item.actionable ? "Actionable after review" : "Signal only"}</dd></div>
       </dl>
-      <p className="fine-print">Rights: {item.rights_note}</p>
+      <p className="fine-print">Rights: {sample ? "Sample data for product walkthrough" : item.rights_note}</p>
     </article>
   );
 }

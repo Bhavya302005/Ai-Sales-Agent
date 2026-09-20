@@ -59,9 +59,6 @@ class UsageResponse(BaseModel):
     average_voice_latency_ms: int | None
     crm_retrying: int
     crm_action_required: int
-    plan_name: str = "Hackathon Demo"
-    subscription_status: str = "demo_active"
-    billing_mode: str = "non_billable"
     cost_label: str = "Estimated unless actual provider cost is present"
 
 
@@ -70,38 +67,57 @@ def get_funnel(
     auth: Auth,
     session: Annotated[Session, Depends(get_session)],
 ) -> FunnelResponse:
-    discovered = session.scalar(
-        select(func.count()).select_from(Lead).where(Lead.organization_id == auth.organization_id)
-    ) or 0
-    reviewed = session.scalar(
-        select(func.count())
-        .select_from(Lead)
-        .where(
-            Lead.organization_id == auth.organization_id,
-            Lead.lifecycle.in_(["reviewed", "approved", "contacted", "qualified", "handed_off"]),
+    discovered = (
+        session.scalar(
+            select(func.count())
+            .select_from(Lead)
+            .where(Lead.organization_id == auth.organization_id)
         )
-    ) or 0
-    approved = session.scalar(
-        select(func.count(func.distinct(CampaignLead.lead_id))).where(
-            CampaignLead.organization_id == auth.organization_id,
-            CampaignLead.approved_at.is_not(None),
+        or 0
+    )
+    reviewed = (
+        session.scalar(
+            select(func.count())
+            .select_from(Lead)
+            .where(
+                Lead.organization_id == auth.organization_id,
+                Lead.lifecycle.in_(
+                    ["reviewed", "approved", "contacted", "qualified", "handed_off"]
+                ),
+            )
         )
-    ) or 0
-    called = session.scalar(
-        select(func.count(func.distinct(Call.lead_id))).where(
-            Call.organization_id == auth.organization_id,
-            Call.started_at.is_not(None),
+        or 0
+    )
+    approved = (
+        session.scalar(
+            select(func.count(func.distinct(CampaignLead.lead_id))).where(
+                CampaignLead.organization_id == auth.organization_id,
+                CampaignLead.approved_at.is_not(None),
+            )
         )
-    ) or 0
+        or 0
+    )
+    called = (
+        session.scalar(
+            select(func.count(func.distinct(Call.lead_id))).where(
+                Call.organization_id == auth.organization_id,
+                Call.started_at.is_not(None),
+            )
+        )
+        or 0
+    )
     qualifications = session.scalars(
         select(Qualification).where(Qualification.organization_id == auth.organization_id)
     ).all()
     qualified = sum(bool(item.evidence_segment_ids) for item in qualifications)
-    handed_off = session.scalar(
-        select(func.count(func.distinct(HandoffTask.lead_id))).where(
-            HandoffTask.organization_id == auth.organization_id
+    handed_off = (
+        session.scalar(
+            select(func.count(func.distinct(HandoffTask.lead_id))).where(
+                HandoffTask.organization_id == auth.organization_id
+            )
         )
-    ) or 0
+        or 0
+    )
     return FunnelResponse(
         discovered=discovered,
         reviewed=reviewed,
@@ -148,9 +164,9 @@ def get_discovery_breakdown(
         )
         or 0,
         calls_attempted=session.scalar(
-            select(func.count()).select_from(Call).where(
-                Call.organization_id == auth.organization_id
-            )
+            select(func.count())
+            .select_from(Call)
+            .where(Call.organization_id == auth.organization_id)
         )
         or 0,
         calls_completed=session.scalar(
@@ -162,9 +178,7 @@ def get_discovery_breakdown(
         interested=sum(
             item.interest in {"interested", "high", "positive"}
             for item in session.scalars(
-                select(Qualification).where(
-                    Qualification.organization_id == auth.organization_id
-                )
+                select(Qualification).where(Qualification.organization_id == auth.organization_id)
             ).all()
         ),
     )
@@ -183,9 +197,7 @@ def get_usage(
     for unit in units:
         matching = [event for event in events if event.unit == unit]
         actual_values = [
-            event.actual_cost_inr
-            for event in matching
-            if event.actual_cost_inr is not None
+            event.actual_cost_inr for event in matching if event.actual_cost_inr is not None
         ]
         totals.append(
             UsageTotal(
@@ -194,9 +206,7 @@ def get_usage(
                 estimated_cost_inr=sum(
                     (event.estimated_cost_inr for event in matching), start=Decimal("0")
                 ),
-                actual_cost_inr=(
-                    sum(actual_values, start=Decimal("0")) if actual_values else None
-                ),
+                actual_cost_inr=(sum(actual_values, start=Decimal("0")) if actual_values else None),
             )
         )
     latency_samples: list[int] = []

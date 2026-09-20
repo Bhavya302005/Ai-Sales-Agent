@@ -96,7 +96,7 @@ export async function requestPstnCall(formData: FormData) {
   const transport = String(formData.get("transport") ?? "");
   if (!["twilio", "omnidim"].includes(transport)) throw new Error("Invalid PSTN provider");
   if (formData.get("consent_attested") !== "on") {
-    throw new Error("Confirm the test participant's PSTN consent first");
+    throw new Error("Confirm the contact's call consent first");
   }
   await apiFetch(`/api/v1/contacts/${contactId}/pstn-consent`, {
     method: "POST",

@@ -117,18 +117,23 @@ def update_member(
         raise HTTPException(status_code=404, detail="Membership not found")
     next_role = payload.role or member.role
     next_status = payload.status or member.status
-    if member.role == "owner" and member.status == "active" and (
-        next_role != "owner" or next_status != "active"
+    if (
+        member.role == "owner"
+        and member.status == "active"
+        and (next_role != "owner" or next_status != "active")
     ):
-        active_owners = session.scalar(
-            select(func.count())
-            .select_from(Membership)
-            .where(
-                Membership.organization_id == auth.organization_id,
-                Membership.role == "owner",
-                Membership.status == "active",
+        active_owners = (
+            session.scalar(
+                select(func.count())
+                .select_from(Membership)
+                .where(
+                    Membership.organization_id == auth.organization_id,
+                    Membership.role == "owner",
+                    Membership.status == "active",
+                )
             )
-        ) or 0
+            or 0
+        )
         if active_owners <= 1:
             raise HTTPException(status_code=409, detail="The final active owner cannot be changed")
     member.role = next_role
@@ -185,34 +190,34 @@ def provider_health(
     auth: Auth, settings: Annotated[Settings, Depends(get_settings)]
 ) -> ProviderHealthResponse:
     _require_owner(auth)
-    twilio_ready = all(
-        [
-            settings.twilio_account_sid,
-            settings.twilio_auth_token,
-            settings.twilio_from_number,
-            settings.public_voice_base_url,
-        ]
+    voice_ready = (
+        bool(
+            settings.omnidim_api_key
+            and settings.omnidim_agent_id
+            and settings.omnidim_test_to_number
+        )
+        if settings.voice_transport == "omnidim"
+        else bool(
+            settings.twilio_account_sid
+            and settings.twilio_auth_token
+            and settings.twilio_from_number
+            and settings.public_voice_base_url
+        )
+        if settings.voice_transport == "twilio"
+        else False
     )
     return ProviderHealthResponse(
         providers={
-            "browser_voice": "ready",
-            "twilio": "configured" if twilio_ready else "credentials_required",
-            "omnidim": (
-                "configured_unverified"
-                if settings.omnidim_api_key
-                and settings.omnidim_agent_id
-                and settings.omnidim_test_to_number
-                else "credentials_required"
-            ),
-            "sarvam": (
-                "configured_unverified" if settings.sarvam_api_key else "credentials_required"
-            ),
-            "hubspot": (
-                "configured_unverified"
-                if settings.hubspot_access_token
-                else "credentials_required"
-            ),
-            "crm_fallback": "ready" if settings.crm_mode == "mock" else "disabled",
+            "outbound_ai_calling": "configured" if voice_ready else "connection_required",
+            "crm": "connected"
+            if settings.crm_mode == "hubspot" and settings.hubspot_access_token
+            else "not_connected",
+            "live_discovery": "connected"
+            if settings.exa_discovery_mode == "mcp"
+            else "not_connected",
+            "conversation_engine": "ready"
+            if settings.dialogue_mode == "deterministic"
+            else "configured",
         }
     )
 
@@ -240,29 +245,49 @@ def security_overview(
 ) -> SecurityOverviewResponse:
     """Return tenant-scoped operational signals without exposing contact data."""
     _require_owner(auth)
-    blocked_calls = session.scalar(
-        select(func.count()).select_from(Call).where(
-            Call.organization_id == auth.organization_id,
-            Call.state == "blocked",
+    blocked_calls = (
+        session.scalar(
+            select(func.count())
+            .select_from(Call)
+            .where(
+                Call.organization_id == auth.organization_id,
+                Call.state == "blocked",
+            )
         )
-    ) or 0
-    failed_calls = session.scalar(
-        select(func.count()).select_from(Call).where(
-            Call.organization_id == auth.organization_id,
-            Call.state == "failed",
+        or 0
+    )
+    failed_calls = (
+        session.scalar(
+            select(func.count())
+            .select_from(Call)
+            .where(
+                Call.organization_id == auth.organization_id,
+                Call.state == "failed",
+            )
         )
-    ) or 0
-    active_suppressions = session.scalar(
-        select(func.count()).select_from(Suppression).where(
-            Suppression.organization_id == auth.organization_id,
+        or 0
+    )
+    active_suppressions = (
+        session.scalar(
+            select(func.count())
+            .select_from(Suppression)
+            .where(
+                Suppression.organization_id == auth.organization_id,
+            )
         )
-    ) or 0
-    recent_sensitive_changes = session.scalar(
-        select(func.count()).select_from(AuditLog).where(
-            AuditLog.organization_id == auth.organization_id,
-            AuditLog.action.in_(["membership_updated", "runtime_controls_updated"]),
+        or 0
+    )
+    recent_sensitive_changes = (
+        session.scalar(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(
+                AuditLog.organization_id == auth.organization_id,
+                AuditLog.action.in_(["membership_updated", "runtime_controls_updated"]),
+            )
         )
-    ) or 0
+        or 0
+    )
     return SecurityOverviewResponse(
         posture="review" if failed_calls >= 3 else "clear",
         blocked_calls=blocked_calls,

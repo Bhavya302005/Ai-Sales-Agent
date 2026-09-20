@@ -87,10 +87,10 @@ def test_result_matches_request_and_bounds_provider_data() -> None:
                             "call_duration_in_seconds": 42,
                             "aggregated_estimated_cost": 0.04,
                             "sentiment_score": "Positive",
+                            "sentiment_analysis_details": "The prospect requested a follow-up.",
+                            "internal_recording_url": "https://omnidim.io/recordings/synthetic.mp3",
                             "extracted_variables": {"interest": "confirmed"},
-                            "interactions": [
-                                {"user_query": "Yes", "bot_response": "Thank you"}
-                            ],
+                            "interactions": [{"user_query": "Yes", "bot_response": "Thank you"}],
                         }
                     ]
                 },
@@ -103,6 +103,38 @@ def test_result_matches_request_and_bounds_provider_data() -> None:
     assert result.status == "completed"
     assert result.duration_seconds == 42
     assert result.extracted_variables == {"interest": "confirmed"}
+    assert result.summary == "The prospect requested a follow-up."
+    assert result.recording_url == "https://omnidim.io/recordings/synthetic.mp3"
+    http.close()
+
+
+def test_recording_download_is_bounded_to_omnidim_audio() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/calls/logs":
+            return httpx.Response(
+                200,
+                json={
+                    "call_log_data": [
+                        {
+                            "call_request_id": {"id": 3166940},
+                            "call_status": "completed",
+                            "internal_recording_url": (
+                                "https://media.omnidim.io/recordings/synthetic.mp3"
+                            ),
+                        }
+                    ]
+                },
+            )
+        assert request.url.host == "media.omnidim.io"
+        return httpx.Response(200, content=b"synthetic-audio", headers={"content-type": "audio/mpeg"})
+
+    http = httpx.Client(
+        base_url="https://backend.omnidim.io/api/v1",
+        transport=httpx.MockTransport(handler),
+    )
+    provider = OmniDimClient(_settings(), client=http)
+
+    assert provider.recording("3166940") == (b"synthetic-audio", "audio/mpeg")
     http.close()
 
 

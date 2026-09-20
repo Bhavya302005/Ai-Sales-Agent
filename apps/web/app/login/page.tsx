@@ -10,19 +10,17 @@ export default function LoginPage() {
           ← Overview
         </Link>
         <div className="eyebrow">Controlled access</div>
-        <h1 className="auth-title">Enter the demo workspace</h1>
+        <h1 className="auth-title">Sign in to your workspace</h1>
         <p className="lede">
-          Local development uses a signed test identity. Every API request still verifies its active
-          organization membership before returning data.
+          Access your lead discovery, qualification, calling, and follow-up workflow.
         </p>
         <form action={enterDemoWorkspace}>
           <button className="primary-button" type="submit">
-            Continue as demo owner
+            Continue to workspace
           </button>
         </form>
-        <p className="fine-print">Live identity providers are not enabled or implied.</p>
+        <p className="fine-print">This local MVP uses a protected workspace session. Connect your identity provider before public deployment.</p>
       </section>
     </main>
   );
 }
-

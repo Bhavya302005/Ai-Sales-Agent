@@ -43,6 +43,12 @@ class DiscoveryImportResponse(BaseModel):
     results: list[DiscoveryResult]
 
 
+class DiscoveryStatusResponse(BaseModel):
+    live_refresh_available: bool
+    provider: str
+    label: str
+
+
 def _require_editor(auth: Auth) -> None:
     if auth.role not in {"owner", "operator"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
@@ -178,13 +184,9 @@ def refresh_discovery(
     except (OSError, RuntimeError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "Live Exa refresh failed; existing verified snapshot results were retained"
-            ),
+            detail=("Live Exa refresh failed; existing verified snapshot results were retained"),
         ) from exc
-    return _ingest_and_extract(
-        session, auth=auth, request=request, items=items, provider="exa_mcp"
-    )
+    return _ingest_and_extract(session, auth=auth, request=request, items=items, provider="exa_mcp")
 
 
 @router.get("/results", response_model=list[DiscoveryResult])
@@ -222,3 +224,17 @@ def list_discovery_results(
         )
     ).all()
     return [_result(document) for document in documents]
+
+
+@router.get("/status", response_model=DiscoveryStatusResponse)
+def discovery_status(
+    auth: Auth,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DiscoveryStatusResponse:
+    del auth
+    available = settings.exa_discovery_mode == "mcp"
+    return DiscoveryStatusResponse(
+        live_refresh_available=available,
+        provider="exa" if available else "not_configured",
+        label="Live discovery connected" if available else "Connect a discovery provider",
+    )

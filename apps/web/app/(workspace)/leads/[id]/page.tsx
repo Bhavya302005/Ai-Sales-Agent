@@ -16,6 +16,7 @@ function date(value: string | null) {
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const lead = await getLead(id);
+  const isSample = lead.source.url.startsWith("fixture://");
   return (
     <>
       <Link className="back-link compact" href="/leads">
@@ -38,14 +39,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <p className="kicker">Original evidence</p>
             <h2>What the source actually says</h2>
           </div>
-          <span className="verified-pill">Permitted fixture</span>
+          <span className="verified-pill">{isSample ? "Sample data" : "Source verified"}</span>
         </div>
         <blockquote>“{lead.source.evidence_excerpt}”</blockquote>
         <dl className="source-facts">
-          <div><dt>Origin</dt><dd>{lead.source.url}</dd></div>
+          <div><dt>Origin</dt><dd>{isSample ? "Sample opportunity · no public URL" : lead.source.url}</dd></div>
           <div><dt>Published</dt><dd>{date(lead.source.published_at)}</dd></div>
           <div><dt>Observed</dt><dd>{date(lead.source.observed_at)}</dd></div>
-          <div><dt>Rights</dt><dd>{lead.source.rights_note}</dd></div>
+          <div><dt>Rights</dt><dd>{isSample ? "Sample data for product walkthrough" : lead.source.rights_note}</dd></div>
         </dl>
       </section>
 

@@ -120,9 +120,6 @@ def test_funnel_and_usage_reconcile_to_stored_records(tmp_path: Path) -> None:
     assert usage.json()["total_estimated_cost_inr"] == "5.0000"
     assert usage.json()["total_actual_cost_inr"] is None
     assert usage.json()["average_voice_latency_ms"] == 500
-    assert usage.json()["plan_name"] == "Hackathon Demo"
-    assert usage.json()["subscription_status"] == "demo_active"
-    assert usage.json()["billing_mode"] == "non_billable"
     assert session.scalar(select(func.count()).select_from(UsageEvent)) == 4
     finalize_completed_call(session, organization_id=ORGANIZATION_ID, call_id=call.id)
     assert session.scalar(select(func.count()).select_from(UsageEvent)) == 4

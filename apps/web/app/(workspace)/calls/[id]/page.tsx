@@ -10,12 +10,15 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const call = await getCallDetail(id);
   const evidence = new Set(call.qualification?.evidence_segment_ids ?? []);
+  const providerSummary = typeof call.usage.provider_summary === "string" ? call.usage.provider_summary : null;
+  const providerSentiment = typeof call.usage.provider_sentiment === "string" ? call.usage.provider_sentiment : null;
+  const recordingAvailable = call.usage.provider_recording_available === true;
   return (
     <>
-      <Link className="back-link compact" href="/campaigns">← Campaign eligibility</Link>
+      <Link className="back-link compact" href="/campaigns">← Campaigns</Link>
       <header className="page-header">
         <div>
-          <div className="eyebrow">Consent-gated {call.transport === "browser" ? "browser" : "PSTN"} call</div>
+          <div className="eyebrow">Consent-gated {call.transport === "browser" ? "voice diagnostic" : "outbound call"}</div>
           <h1 className="page-title">AI qualification session</h1>
         </div>
         <span className="mode-badge">{call.state}</span>
@@ -24,8 +27,8 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
         <BrowserCallSession callId={call.id} maxDuration={call.max_duration_seconds} />
       ) : ["twilio", "omnidim"].includes(call.transport) && ["eligible", "connecting", "active", "ending"].includes(call.state) ? (
         <section className="empty-panel">
-          <h2>{call.state === "eligible" ? "Ready to place the real call." : "Real test call is in progress."}</h2>
-          <p>{call.transport === "omnidim" ? "OmniDimension" : "Twilio"} status: {call.state}. Audio recording is disabled in this application.</p>
+          <h2>{call.state === "eligible" ? "Ready to start the call." : "Call in progress."}</h2>
+          <p>{call.transport === "omnidim" ? `OmniDimension status: ${call.state}. Recording will appear after the provider finalizes the call.` : `Twilio status: ${call.state}. Audio recording is disabled for this transport.`}</p>
           {call.transport === "omnidim" ? <form action={refreshProviderCall}><input name="call_id" type="hidden" value={call.id} /><button className="secondary-button" type="submit">Refresh provider result</button></form> : <Link className="secondary-button" href={`/calls/${call.id}`}>Refresh status</Link>}
         </section>
       ) : call.state === "completed" ? (
@@ -33,7 +36,7 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
           <section className="detail-panel transcript-panel">
             <div className="section-heading">
               <div><p className="kicker">Finalized evidence</p><h2>Transcript</h2></div>
-              <span className="verified-pill">Audio not stored</span>
+              <span className="verified-pill">{recordingAvailable ? "Provider recording available" : "Audio not stored"}</span>
             </div>
             <div className="transcript-list">
               {call.transcript.map((segment) => (
@@ -49,6 +52,7 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
             </div>
           </section>
           <div className="call-outcome-stack">
+            {(providerSummary || recordingAvailable) ? <section className="detail-panel provider-insights"><p className="kicker">Provider insights</p><h2>Call summary</h2>{providerSummary ? <p className="panel-copy">{providerSummary}</p> : null}{providerSentiment ? <p className="fine-print">Sentiment: {providerSentiment}</p> : null}{recordingAvailable ? <audio controls preload="none" src={`/api/calls/${call.id}/recording`}>Recording playback is not supported by this browser.</audio> : null}</section> : null}
             <section className="detail-panel">
               <p className="kicker">Verified result</p><h2>Qualification</h2>
               {call.qualification ? (
@@ -88,11 +92,11 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
         </div>
       ) : (
         <section className="empty-panel">
-          <h2>{call.state === "failed" ? "The real call did not complete." : "This call cannot start."}</h2>
+          <h2>{call.state === "failed" ? "The call did not complete." : "This call cannot start."}</h2>
           <p>
             {call.state === "failed"
               ? callFailureMessage(call)
-              : `Current state: ${call.state}. Return to Campaign eligibility to review the decision.`}
+              : `Current state: ${call.state}. Return to Campaigns to review the eligibility decision.`}
           </p>
           <ul className="eligibility-failures">
             {call.eligibility_checks.filter((check) => !check.passed).map((check) => (

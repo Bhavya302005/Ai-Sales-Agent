@@ -63,6 +63,65 @@ YES_ANSWERS = (
     "हाँ",
     "जी हाँ",
     "बिल्कुल",
+    "હા",
+    "હા છે",
+    "હા અમ",
+)
+NO_ANSWERS = ("no", "nope", "not me", "नहीं", "ના")
+
+NEED_QUESTIONS = ("need", "requirement", "challenge", "problem", "looking for", "help with")
+SCOPE_QUESTIONS = ("scope", "services", "project", "users", "team", "workload", "environment")
+TIMELINE_QUESTIONS = (
+    "timeline",
+    "deadline",
+    "when",
+    "start",
+    "urgency",
+    "time frame",
+    "timeframe",
+    "टाइमलाइन",
+    "समय सीमा",
+    "સમયરેખા",
+)
+AUTHORITY_QUESTIONS = (
+    "decision",
+    "approve",
+    "approval",
+    "stakeholder",
+    "responsible",
+    "involved",
+    "निर्णय",
+    "फैसला",
+    "નિર્ણય",
+)
+INTEREST_QUESTIONS = (
+    "interested",
+    "follow up",
+    "follow-up",
+    "next step",
+    "schedule",
+    "meeting",
+    "callback",
+    "call back",
+    "speak with",
+    "connect you",
+    "विशेषज्ञ",
+    "संपर्क किया जाए",
+    "વિશેષજ્ઞ",
+    "ઈચ્છા",
+    "આગળની ચર્ચા",
+)
+CALLBACK_TIMING_QUESTIONS = (
+    "which day",
+    "what day",
+    "what time",
+    "preferred time",
+    "day or time",
+    "कौन सा दिन",
+    "किस समय",
+    "કયો દિવસ",
+    "કયો સમય",
+    "યોગ્ય રહેશે",
 )
 
 
@@ -97,30 +156,57 @@ def _derive_fields(segments: list[TranscriptSegment]) -> dict[str, Any]:
         "evidence_segment_ids": [],
     }
     previous_agent = ""
+    previous_agent_segment: TranscriptSegment | None = None
     for segment in segments:
         if segment.speaker == "agent":
             previous_agent = segment.text.casefold()
+            previous_agent_segment = segment
             continue
         if segment.speaker != "participant":
             continue
         text = segment.text.strip()
         normalized = " ".join(re.sub(r"[^\w\u0900-\u097f]+", " ", text.casefold()).split())
+        padded = f" {normalized} "
+        raw_folded = text.casefold().strip(" .,!?:;।")
+        affirmative = any(
+            f" {answer} " in padded
+            or raw_folded == answer
+            or raw_folded.startswith(f"{answer} ")
+            for answer in YES_ANSWERS
+        )
+        negative = any(
+            f" {answer} " in padded
+            or raw_folded == answer
+            or raw_folded.startswith(f"{answer} ")
+            for answer in NO_ANSWERS
+        )
         used = False
 
-        if any(term in previous_agent for term in ("workloads", "वर्कलोड")):
-            result["scope"] = text
-            result["need"] = text
-            used = True
-        if any(
+        is_environment_question = any(
             term in previous_agent
             for term in ("current environment", "users, locations", "मौजूदा परिवेश")
-        ):
-            result["scope"] = text
-            used = True
-        if any(
+        )
+        is_success_question = any(
             term in previous_agent
             for term in ("make this project successful", "most important", "सफलता", "सबसे महत्वपूर्ण")
-        ):
+        )
+
+        # Classify the preceding question once. This prevents a question such as
+        # "requirements most important for the project" from overwriting both the
+        # need and scope captured by earlier, more specific questions.
+        confirms_described_need = (
+            ("requirement" in previous_agent or "जरूरत" in previous_agent)
+            and any(term in previous_agent for term in ("still active", "accurate", "सक्रिय"))
+            and affirmative
+        )
+        if confirms_described_need and previous_agent_segment is not None:
+            result["need"] = f"Confirmed: {previous_agent_segment.text.strip()}"
+            _add_evidence(result["evidence_segment_ids"], previous_agent_segment)
+            used = True
+        elif is_environment_question:
+            result["scope"] = text
+            used = True
+        elif is_success_question:
             if not _contains(normalized, UNKNOWN_PHRASES):
                 result["objections"].append(
                     {
@@ -130,20 +216,34 @@ def _derive_fields(segments: list[TranscriptSegment]) -> dict[str, Any]:
                     }
                 )
             used = True
-        if any(
-            term in previous_agent
-            for term in ("deadline", "business event", "समय-सीमा", "व्यावसायिक कारण")
-        ):
+        elif any(term in previous_agent for term in TIMELINE_QUESTIONS):
             result["timeline"] = text
             used = True
-        if any(
-            term in previous_agent
-            for term in ("owns the technical", "commercial decision", "निर्णय की जिम्मेदारी")
-        ):
-            result["authority_known"] = not _contains(normalized, UNKNOWN_PHRASES)
+        elif "budget" in previous_agent or "बजट" in previous_agent:
+            result["budget_known"] = (
+                None
+                if _contains(normalized, UNKNOWN_PHRASES)
+                else not any(f" {answer} " in f" {normalized} " for answer in NO_ANSWERS)
+            )
             used = True
-        if "budget" in previous_agent or "बजट" in previous_agent:
-            result["budget_known"] = not _contains(normalized, UNKNOWN_PHRASES)
+        elif any(term in previous_agent for term in AUTHORITY_QUESTIONS):
+            result["authority_known"] = (
+                None
+                if _contains(normalized, UNKNOWN_PHRASES)
+                else not any(f" {answer} " in f" {normalized} " for answer in NO_ANSWERS)
+            )
+            used = True
+        elif any(term in previous_agent for term in INTEREST_QUESTIONS):
+            # Interest and next-step values are resolved below from the answer.
+            used = True
+        elif any(
+            term in previous_agent
+            for term in ("workloads", "business processes", *NEED_QUESTIONS)
+        ):
+            result["need"] = text
+            used = True
+        elif any(term in previous_agent for term in SCOPE_QUESTIONS):
+            result["scope"] = text
             used = True
 
         if _contains(normalized, PRICING_OR_COMMITMENT):
@@ -162,14 +262,24 @@ def _derive_fields(segments: list[TranscriptSegment]) -> dict[str, Any]:
             result["interest"] = "positive"
             used = True
 
-        asks_for_follow_up = (
-            "human specialist" in previous_agent or "मानव विशेषज्ञ" in previous_agent
-        ) and ("confirm" in previous_agent or "पुष्टि" in previous_agent)
-        padded = f" {normalized} "
-        if asks_for_follow_up and any(f" {answer} " in padded for answer in YES_ANSWERS):
-            result["requested_next_step"] = (
-                "Human specialist follow-up using the verified test contact"
-            )
+        interest_question = any(term in previous_agent for term in INTEREST_QUESTIONS)
+        if interest_question and affirmative:
+            result["interest"] = "positive"
+            used = True
+        elif interest_question and negative:
+            result["interest"] = "not_interested"
+            used = True
+
+        asks_for_follow_up = any(term in previous_agent for term in INTEREST_QUESTIONS) and (
+            "confirm" in previous_agent or "पुष्टि" in previous_agent or affirmative
+        )
+        if asks_for_follow_up and affirmative:
+            result["requested_next_step"] = "Human specialist follow-up requested"
+            used = True
+        if any(term in previous_agent for term in CALLBACK_TIMING_QUESTIONS) and not _contains(
+            normalized, UNKNOWN_PHRASES
+        ):
+            result["requested_next_step"] = f"Preferred follow-up time: {text}"
             used = True
 
         if used:
@@ -223,14 +333,33 @@ def finalize_completed_call(
             Qualification.call_id == call.id,
         )
     )
+    derived = _derive_fields(segments)
     qualification_created = qualification is None
     if qualification is None:
         qualification = Qualification(
             organization_id=organization_id,
             call_id=call.id,
-            **_derive_fields(segments),
+            **derived,
         )
         session.add(qualification)
+        session.flush()
+    else:
+        for field in (
+            "need",
+            "timeline",
+            "scope",
+            "authority_known",
+            "budget_known",
+            "interest",
+            "requested_next_step",
+        ):
+            if getattr(qualification, field) is None and derived[field] is not None:
+                setattr(qualification, field, derived[field])
+        if not qualification.objections and derived["objections"]:
+            qualification.objections = derived["objections"]
+        qualification.evidence_segment_ids = list(
+            dict.fromkeys([*qualification.evidence_segment_ids, *derived["evidence_segment_ids"]])
+        )
         session.flush()
 
     handoff = session.scalar(
@@ -240,7 +369,17 @@ def finalize_completed_call(
         )
     )
     handoff_created = False
-    if call.outcome == "handoff_requested" and handoff is None:
+    objection_types = {
+        str(item.get("type")) for item in qualification.objections if isinstance(item, dict)
+    }
+    needs_handoff = (
+        call.outcome == "handoff_requested"
+        or qualification.interest == "positive"
+        or bool(qualification.requested_next_step)
+        or "pricing_or_commitment" in objection_types
+    )
+    if needs_handoff and handoff is None:
+        call.outcome = "handoff_requested"
         owner_id = session.scalar(
             select(CampaignLead.owner_id)
             .where(

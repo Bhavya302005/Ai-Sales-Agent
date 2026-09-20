@@ -110,7 +110,7 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
 
   await page.goto("/leads");
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByRole("button", { name: "Continue as demo owner" }).click();
+  await page.getByRole("button", { name: "Continue to workspace" }).click();
   await expect(page).toHaveURL(/\/leads$/);
   await expect(page.getByRole("heading", { name: "Evidence before outreach." })).toBeVisible();
 
@@ -123,10 +123,10 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
   await expect(page.getByText("Approved knowledge only")).toBeVisible();
 
   await page.locator(".sidebar").getByRole("link", { name: "Campaign" }).click();
-  await page.getByRole("button", { name: "Approve test lead" }).click();
-  await expect(page.getByRole("button", { name: "Prepare browser test" })).toBeVisible();
-  await page.getByRole("button", { name: "Prepare browser test" }).click();
-  await page.getByRole("link", { name: "Open browser test" }).click();
+  await page.getByRole("button", { name: "Approve for outreach" }).click();
+  await expect(page.getByRole("button", { name: "Prepare voice diagnostic" })).toBeVisible();
+  await page.getByRole("button", { name: "Prepare voice diagnostic" }).click();
+  await page.getByRole("link", { name: "Open voice diagnostic" }).click();
 
   await expect(page.getByRole("heading", { name: "AI qualification session" })).toBeVisible();
   await page.getByRole("button", { name: "Start AI call" }).click();
@@ -195,31 +195,31 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
 
 test("owner controls and due campaign processing remain operator-driven", async ({ page }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Continue as demo owner" }).click();
+  await page.getByRole("button", { name: "Continue to workspace" }).click();
   await expect(page).toHaveURL(/\/leads$/);
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Rule-based security posture" })).toBeVisible();
-  await expect(page.getByText(/not a predictive fraud model/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Outreach safeguards" })).toBeVisible();
+  await expect(page.getByText(/Deterministic operational controls/i)).toBeVisible();
   await page.getByRole("button", { name: "Pause all calls" }).click();
   await expect(page.getByRole("heading", { name: "Calling paused" })).toBeVisible();
   await page.getByRole("button", { name: "Resume calls" }).click();
   await expect(page.getByRole("heading", { name: "Calling available" })).toBeVisible();
 
   await page.goto("/campaigns");
-  await page.getByRole("button", { name: "Process due campaigns" }).click();
+  await page.getByRole("button", { name: "Process scheduler now" }).click();
   await expect(page.getByText(/ready|scheduled/).first()).toBeVisible();
   await page.goto("/notifications");
   await expect(page.getByText("Campaign is ready")).toBeVisible();
   await page.goto("/analytics");
-  await expect(page.getByRole("heading", { name: "Hackathon Demo" })).toBeVisible();
-  await expect(page.getByText(/No payment processor is connected/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Measured quantities" })).toBeVisible();
+  await expect(page.getByText("Call seconds")).toBeVisible();
 });
 
 test("mobile workspace remains usable as an installable web app", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/login");
-  await page.getByRole("button", { name: "Continue as demo owner" }).click();
+  await page.getByRole("button", { name: "Continue to workspace" }).click();
   await expect(page).toHaveURL(/\/leads$/);
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", /manifest\.webmanifest/);
   await expect(page.locator(".sidebar").getByRole("link", { name: "Campaign" })).toBeVisible();
@@ -234,7 +234,7 @@ test("mobile workspace remains usable as an installable web app", async ({ page 
 
 test("protected workspace routes return to login after sign-out", async ({ page }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Continue as demo owner" }).click();
+  await page.getByRole("button", { name: "Continue to workspace" }).click();
   await expect(page).toHaveURL(/\/leads$/);
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);

@@ -28,12 +28,12 @@ def crm_status(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> CrmStatusResponse:
     _ = auth
-    configured = settings.crm_mode == "mock" or bool(settings.hubspot_access_token)
+    configured = settings.crm_mode == "hubspot" and bool(settings.hubspot_access_token)
     return CrmStatusResponse(
         mode=settings.crm_mode,
         configured=configured,
         label=(
-            "Mock CRM · deterministic local verification"
+            "CRM not connected"
             if settings.crm_mode == "mock"
             else f"HubSpot · pinned API {settings.hubspot_api_version}"
         ),

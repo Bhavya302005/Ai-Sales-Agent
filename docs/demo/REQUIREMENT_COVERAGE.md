@@ -19,7 +19,8 @@ Truthful status for the hackathon demo on 2026-09-20.
 | CRM integration | Ready / conditional | Mock task sync is verified; HubSpot contact preview/import and task sync require sandbox credentials |
 | Notifications | Ready | Tenant/user-scoped in-app notification center |
 | Authentication, roles, admin, audit | Ready | Signed session, owner/operator/viewer controls, final-owner protection, audit history |
-| Subscriptions and billing | Demo-safe | Non-billable demo plan and measured usage visibility; no payment processor or invoices |
+| Voice usage | Ready | Stored provider quantities and clearly labelled estimated/actual costs |
+| Subscriptions and billing | Roadmap | Not shown until a real payment provider, subscription lifecycle, and invoices exist |
 | Fraud detection | Demo-safe | Deterministic safety/abuse signals and hard controls; no predictive fraud model |
 | Web, Android and iOS | Demo-safe | Responsive installable web app; native app-store binaries are roadmap |
 | Security and encryption | Partial | Secret types, headers, rate limits, tenant isolation and HTTPS expectations; managed-at-rest infrastructure is deployment-dependent |

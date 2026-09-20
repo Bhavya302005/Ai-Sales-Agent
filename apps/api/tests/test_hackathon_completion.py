@@ -81,6 +81,7 @@ def test_discovery_filters_and_live_failure_keep_snapshot(tmp_path: Path) -> Non
     with _client(tmp_path / "discovery-fallback.db") as (client, settings, session):
         client.post("/api/v1/discovery/import-demo", headers=_headers(settings))
         live = client.post("/api/v1/discovery/refresh", headers=_headers(settings))
+        provider_status = client.get("/api/v1/discovery/status", headers=_headers(settings))
         signals = client.get(
             "/api/v1/discovery/results?type=hiring_signal&actionable=false",
             headers=_headers(settings),
@@ -88,6 +89,11 @@ def test_discovery_filters_and_live_failure_keep_snapshot(tmp_path: Path) -> Non
         total = session.scalar(select(func.count()).select_from(SourceDocument))
 
     assert live.status_code == 409
+    assert provider_status.json() == {
+        "live_refresh_available": False,
+        "provider": "not_configured",
+        "label": "Connect a discovery provider",
+    }
     assert "snapshot results remain available" in live.json()["detail"]
     assert signals.status_code == 200
     assert len(signals.json()) == 4
@@ -131,9 +137,7 @@ def test_calling_only_csv_import_is_bounded_and_never_returns_phone(tmp_path: Pa
 def test_direct_discovery_lead_can_be_queued_for_campaign_once(tmp_path: Path) -> None:
     with _client(tmp_path / "lead-campaign.db") as (client, settings, session):
         client.post("/api/v1/discovery/import-demo", headers=_headers(settings))
-        discovered_lead = session.scalar(
-            select(Lead).where(Lead.id != LEAD_ID)
-        )
+        discovered_lead = session.scalar(select(Lead).where(Lead.id != LEAD_ID))
         assert discovered_lead is not None
         campaign = client.post(
             "/api/v1/campaigns",

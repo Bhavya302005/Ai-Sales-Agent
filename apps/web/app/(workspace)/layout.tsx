@@ -2,22 +2,25 @@ import Link from "next/link";
 
 import { signOut } from "@/app/login/actions";
 import { getNotifications, getViewer } from "@/lib/api";
+import { diagnosticsEnabled } from "@/lib/runtime";
 
-const navigation = [
-  ["Knowledge", "/onboarding"],
-  ["Sources", "/sources"],
-  ["Opportunities", "/leads"],
-  ["Campaign", "/campaigns"],
-  ["Voice lab", "/voice-lab"],
+const primaryNavigation = [
+  ["Business profile", "/onboarding"],
+  ["Discover", "/sources"],
+  ["Leads", "/leads"],
+  ["Campaigns", "/campaigns"],
   ["Analytics", "/analytics"],
   ["Callbacks", "/callbacks"],
   ["Notifications", "/notifications"],
   ["Integrations", "/settings/integrations"],
-  ["Admin", "/admin"],
+  ["Administration", "/admin"],
 ] as const;
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const [{ me, workspace }, notifications] = await Promise.all([getViewer(), getNotifications()]);
+  const navigation = diagnosticsEnabled()
+    ? [...primaryNavigation.slice(0, 4), ["Voice diagnostics", "/voice-lab"] as const, ...primaryNavigation.slice(4)]
+    : primaryNavigation;
   return (
     <div className="product-shell">
       <aside className="sidebar">
@@ -51,7 +54,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             ["Discovery", "/sources"],
             ["Review", "/leads"],
             ["Campaign", "/campaigns"],
-            ["Call", "/voice-lab"],
+            ["Call", "/campaigns"],
             ["Insights", "/analytics"],
             ["Follow-up", "/settings/integrations"],
           ].map(([label, href], index) => (

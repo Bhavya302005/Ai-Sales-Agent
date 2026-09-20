@@ -5,6 +5,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -465,7 +466,7 @@ def approve_campaign_lead(
             action="campaign_lead_approved",
             target_type="campaign_lead",
             target_id=item.id,
-            reason="Operator approved the consenting demo lead for eligibility evaluation",
+            reason="Operator approved the lead for outreach eligibility evaluation",
             request_id=request.state.request_id,
         )
     )
@@ -557,10 +558,10 @@ def attest_pstn_consent(
         AuditLog(
             organization_id=auth.organization_id,
             actor_id=auth.user_id,
-            action="pstn_test_consent_attested",
+            action="outbound_call_consent_attested",
             target_type="contact",
             target_id=contact.id,
-            reason="Operator attested consent for one hackathon PSTN test number",
+            reason="Operator attested contact consent for the outbound call",
             request_id=request.state.request_id,
         )
     )
@@ -646,7 +647,7 @@ def calling_provider(
             if settings.voice_transport == "omnidim"
             else "Twilio ConversationRelay"
             if settings.voice_transport == "twilio"
-            else "Browser voice demo"
+            else "Browser voice diagnostics"
         ),
     )
 
@@ -731,6 +732,8 @@ def refresh_provider_call(
         "duration_seconds": result.duration_seconds,
         "provider_reported_estimated_cost": result.estimated_cost,
         "provider_sentiment": result.sentiment,
+        "provider_summary": result.summary,
+        "provider_recording_available": result.recording_url is not None,
         "reservation_status": "released" if terminal else "reserved",
     }
     if result.status == "completed":
@@ -771,6 +774,42 @@ def refresh_provider_call(
     )
     session.commit()
     return _call_response(call)
+
+
+@router.get("/calls/{call_id}/recording", response_class=Response)
+def get_provider_recording(
+    call_id: UUID,
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    call = session.scalar(
+        select(Call).where(Call.id == call_id, Call.organization_id == auth.organization_id)
+    )
+    if call is None:
+        raise HTTPException(status_code=404, detail="Call not found")
+    if call.transport != "omnidim":
+        raise HTTPException(status_code=409, detail="Recording is not provided by OmniDimension")
+    mapping = omnidim_provider_mapping(session, call_id=call.id)
+    if mapping is None:
+        raise HTTPException(status_code=409, detail="Call has not been dispatched")
+    provider = OmniDimClient(settings)
+    try:
+        recording = provider.recording(mapping.external_id)
+    except OmniDimPermanentError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OmniDimRetryableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        provider.close()
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Recording is not available yet")
+    content, media_type = recording
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "private, no-store", "Content-Disposition": "inline"},
+    )
 
 
 @router.get("/calls/{call_id}", response_model=CallResponse)

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getCallingProvider, getCampaignRuns, getCampaigns, getLeads, type CampaignRun } from "@/lib/api";
+import { diagnosticsEnabled } from "@/lib/runtime";
 
 import {
   approveLead,
@@ -20,30 +21,28 @@ export default async function CampaignsPage() {
     campaigns.map(async (campaign) => [campaign.id, await getCampaignRuns(campaign.id)] as const),
   );
   const runsByCampaign: Record<string, CampaignRun[]> = Object.fromEntries(campaignRunEntries);
+  const showDiagnostics = diagnosticsEnabled();
   return (
     <>
       <header className="page-header">
         <div><div className="eyebrow">Call control</div><h1 className="page-title">Campaigns and calling</h1></div>
-        <form action={processDueCampaigns}><button className="secondary-button" type="submit">Process due campaigns</button></form>
+        <span className={`knowledge-state ${provider.pstn_configured ? "callable" : "blocked"}`}>{provider.pstn_configured ? `${provider.label} ready` : "Calling setup required"}</span>
       </header>
       <section className="campaign-create-panel">
         <div><p className="kicker">Explicit workflow</p><h2>Create a safe campaign</h2></div>
         <form action={createCampaign} className="campaign-create-form">
-          <input name="name" placeholder="Campaign name" required />
-          <select defaultValue="leads_and_calling" name="mode">
-            <option value="leads_and_calling">Leads + Calling</option>
-            <option value="calling_only">Calling Only</option>
-          </select>
-          <input defaultValue="Asia/Kolkata" name="timezone" required />
-          <select defaultValue="once" name="recurrence">
-            <option value="once">One time</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-          <input defaultValue="1" max="5" min="1" name="max_attempts" type="number" />
-          <input defaultValue="60" max="1440" min="5" name="retry_delay_minutes" type="number" title="Retry delay in minutes" />
-          <input defaultValue="500" min="0" name="daily_budget_inr" type="number" />
+          <label><span>Campaign name</span><input name="name" placeholder="e.g. SharePoint opportunities" required /></label>
+          <label><span>Workflow</span><select defaultValue="leads_and_calling" name="mode"><option value="leads_and_calling">Discover leads + call</option><option value="calling_only">Call an uploaded list</option></select></label>
+          <label><span>Time zone</span><input defaultValue="Asia/Kolkata" name="timezone" required /></label>
+          <label><span>Schedule</span><select defaultValue="once" name="recurrence"><option value="once">Run once</option><option value="daily">Run daily</option><option value="weekly">Run weekly</option><option value="monthly">Run monthly</option></select></label>
+          <details className="campaign-advanced-settings">
+            <summary>Retry and budget controls</summary>
+            <div>
+              <label><span>Maximum attempts</span><input defaultValue="1" max="5" min="1" name="max_attempts" type="number" /></label>
+              <label><span>Retry delay (minutes)</span><input defaultValue="60" max="1440" min="5" name="retry_delay_minutes" type="number" /></label>
+              <label><span>Daily budget (₹)</span><input defaultValue="500" min="0" name="daily_budget_inr" type="number" /></label>
+            </div>
+          </details>
           <button className="primary-button" type="submit">Create campaign</button>
         </form>
       </section>
@@ -58,7 +57,7 @@ export default async function CampaignsPage() {
               {campaign.recurrence} · maximum {campaign.max_attempts} attempt{campaign.max_attempts === 1 ? "" : "s"} · retry after {campaign.retry_delay_minutes} minutes
               {campaign.scheduled_start_at ? ` · starts ${new Date(campaign.scheduled_start_at).toLocaleString("en-IN")}` : " · available now"}
             </p>
-            <p className="fine-print">Real-call provider: {provider.label} · {provider.pstn_configured ? "configured" : "configuration required"}</p>
+            <p className="fine-print">Calling provider: {provider.label} · {provider.pstn_configured ? "ready" : "action required in Administration"}</p>
             {(runsByCampaign[campaign.id] ?? []).slice(0, 3).map((run) => (
               <div className="campaign-run" key={run.id}>
                 <span><b>{run.state}</b> · {new Date(run.scheduled_for).toLocaleString("en-IN")} · {run.ready_lead_count} approved lead(s)</span>
@@ -100,35 +99,36 @@ export default async function CampaignsPage() {
                 <button className="secondary-button" type="submit">Add for review</button>
               </form>
             )}
-            {campaign.leads.map((item) => (
-              <div className="campaign-lead" key={item.id}>
+            {campaign.leads.map((item) => {
+              const lead = leads.find((candidate) => candidate.id === item.lead_id);
+              return <div className="campaign-lead" key={item.id}>
                 <div>
-                  <Link href={`/leads/${item.lead_id}`}>Review opportunity</Link>
-                  <span>{item.state.replaceAll("_", " ")}</span>
-                  <span className={item.disposition === "interested" ? "interested-pill" : ""}>{item.disposition.replaceAll("_", " ")}</span>
-                  {item.latest_call_state ? <b>Latest {item.latest_call_transport} call: {item.latest_call_state}</b> : null}
+                  <Link href={`/leads/${item.lead_id}`}>{lead?.company_name ?? "Review opportunity"}</Link>
+                  <span>Status: {item.state.replaceAll("_", " ")}</span>
+                  {item.disposition !== item.state ? <span className={item.disposition === "interested" ? "interested-pill" : ""}>Outcome: {item.disposition.replaceAll("_", " ")}</span> : null}
+                  {item.latest_call_state ? <b>Last attempt: {item.latest_call_transport} · {item.latest_call_state}</b> : null}
                 </div>
                 {item.approved_at ? (
                   item.contact_id ? (
                     <div className="call-actions">
-                      {item.latest_call_transport === "browser" && item.latest_call_state === "eligible" && item.latest_call_id ? (
-                        <Link className="secondary-button" href={`/calls/${item.latest_call_id}`}>Open browser test</Link>
-                      ) : (
+                      {showDiagnostics && item.latest_call_transport === "browser" && item.latest_call_state === "eligible" && item.latest_call_id ? (
+                        <Link className="secondary-button" href={`/calls/${item.latest_call_id}`}>Open voice diagnostic</Link>
+                      ) : showDiagnostics ? (
                         <form action={requestBrowserCall}>
                           <input name="campaign_id" type="hidden" value={campaign.id} />
                           <input name="lead_id" type="hidden" value={item.lead_id} />
                           <input name="contact_id" type="hidden" value={item.contact_id} />
                           <input name="idempotency_key" type="hidden" value={`browser:${item.id}:${item.lead_id}:${item.contact_id}:${item.latest_call_id ?? "first"}`} />
-                          <button className="secondary-button" type="submit">Prepare browser test</button>
+                          <button className="text-button" type="submit">Prepare voice diagnostic</button>
                         </form>
-                      )}
+                      ) : null}
                       {["twilio", "omnidim"].includes(item.latest_call_transport ?? "") && item.latest_call_state === "eligible" && item.latest_call_id ? (
                         <form action={dispatchPstnCall}>
                           <input name="call_id" type="hidden" value={item.latest_call_id} />
-                          <button className="primary-button" type="submit">Place real test call</button>
+                          <button className="primary-button" type="submit">Start call</button>
                         </form>
                       ) : ["twilio", "omnidim"].includes(item.latest_call_transport ?? "") && item.latest_call_id && ["connecting", "active", "ending"].includes(item.latest_call_state ?? "") ? (
-                        <Link className="primary-button" href={`/calls/${item.latest_call_id}`}>Track real call</Link>
+                        <Link className="primary-button" href={`/calls/${item.latest_call_id}`}>Track call</Link>
                       ) : (
                         <form className="pstn-consent-form" action={requestPstnCall}>
                           <input name="campaign_id" type="hidden" value={campaign.id} />
@@ -136,17 +136,17 @@ export default async function CampaignsPage() {
                           <input name="contact_id" type="hidden" value={item.contact_id} />
                           <input name="transport" type="hidden" value={provider.transport} />
                           <input name="idempotency_key" type="hidden" value={`${provider.transport}:${item.id}:${item.lead_id}:${item.contact_id}:${item.latest_call_id ?? "first"}`} />
-                          <label><input name="consent_attested" type="checkbox" required /> Participant consented to this PSTN test</label>
-                          <button className="primary-button" disabled={!provider.pstn_configured} type="submit">Prepare real call</button>
+                          <label><input name="consent_attested" type="checkbox" required /> I confirm this contact consented to receive this call</label>
+                          <button className="primary-button" disabled={!provider.pstn_configured} type="submit">Prepare call</button>
                         </form>
                       )}
                     </div>
-                  ) : <span className="warning-copy">No verified test contact</span>
+                  ) : <span className="warning-copy">No callable contact</span>
                 ) : (
                   <form action={approveLead}>
                     <input name="campaign_id" type="hidden" value={campaign.id} />
                     <input name="lead_id" type="hidden" value={item.lead_id} />
-                    <button className="secondary-button" type="submit">Approve test lead</button>
+                    <button className="secondary-button" type="submit">Approve for outreach</button>
                   </form>
                 )}
                 {item.latest_call_checks.some((check) => !check.passed) ? (
@@ -156,11 +156,12 @@ export default async function CampaignsPage() {
                     ))}
                   </ul>
                 ) : null}
-              </div>
-            ))}
+              </div>;
+            })}
           </article>
         ))}
       </section>
+      {showDiagnostics ? <form className="diagnostic-action" action={processDueCampaigns}><button className="text-button" type="submit">Process scheduler now</button></form> : null}
     </>
   );
 }

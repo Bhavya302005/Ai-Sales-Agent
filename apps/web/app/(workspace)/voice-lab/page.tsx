@@ -1,6 +1,11 @@
+import { notFound } from "next/navigation";
+
+import { diagnosticsEnabled } from "@/lib/runtime";
+
 import { VoiceLab } from "./voice-lab";
 
 export default function VoiceLabPage() {
+  if (!diagnosticsEnabled()) notFound();
   return (
     <>
       <header className="page-header">

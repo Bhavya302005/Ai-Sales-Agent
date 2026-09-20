@@ -66,7 +66,7 @@ def seed_demo(database_url: str) -> bool:
         workspace = Workspace(
             id=WORKSPACE_ID,
             organization_id=ORGANIZATION_ID,
-            name="India services demo",
+            name="SignalPath Sales Workspace",
             locale="en-IN",
             timezone="Asia/Kolkata",
         )
@@ -239,7 +239,7 @@ def seed_demo(database_url: str) -> bool:
             id=CAMPAIGN_ID,
             organization_id=ORGANIZATION_ID,
             workspace_id=WORKSPACE_ID,
-            name="Consenting browser qualification demo",
+            name="Qualified opportunity outreach",
             timezone="Asia/Kolkata",
             daily_budget_inr=Decimal("500.00"),
             status="active",

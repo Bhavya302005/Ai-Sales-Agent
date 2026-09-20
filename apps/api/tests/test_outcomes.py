@@ -134,21 +134,130 @@ def test_finalization_derives_only_transcript_backed_fields_and_one_handoff(
     assert qualification.timeline == "Before the September deadline."
     assert qualification.authority_known is True
     assert qualification.budget_known is True
-    assert qualification.interest is None
-    assert qualification.requested_next_step == (
-        "Human specialist follow-up using the verified test contact"
-    )
+    assert qualification.interest == "positive"
+    assert qualification.requested_next_step == "Human specialist follow-up requested"
     assert qualification.objections[0]["type"] == "delivery_requirement"
     assert len(qualification.evidence_segment_ids) == 7
     assert first.handoff is not None
-    assert first.handoff.priority == "normal"
-    assert first.handoff.due_at.replace(tzinfo=UTC) == fixed_now + timedelta(days=1)
+    assert first.handoff.priority == "high"
+    assert first.handoff.due_at.replace(tzinfo=UTC) == fixed_now + timedelta(hours=4)
     assert first.qualification_created is True
     assert first.handoff_created is True
     assert repeated.qualification_created is False
     assert repeated.handoff_created is False
     assert session.scalar(select(func.count()).select_from(Qualification)) == 1
     assert session.scalar(select(func.count()).select_from(HandoffTask)) == 1
+    session.close()
+
+
+def test_natural_provider_questions_repair_qualification_and_create_handoff(
+    tmp_path: Path,
+) -> None:
+    _, session = _setup(tmp_path / "provider-outcomes.db")
+    call = _completed_call(session, outcome="completed")
+    segments = session.scalars(
+        select(TranscriptSegment).where(TranscriptSegment.call_id == call.id)
+    ).all()
+    for segment in segments:
+        session.delete(segment)
+    session.flush()
+    session.add_all(
+        [
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=1,
+                speaker="agent",
+                started_ms=0,
+                ended_ms=1000,
+                text="What business requirement are you looking for help with?",
+                language="en-IN",
+                is_final=True,
+            ),
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=2,
+                speaker="participant",
+                started_ms=1000,
+                ended_ms=2000,
+                text="We need a SharePoint document migration.",
+                language="en-IN",
+                is_final=True,
+            ),
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=3,
+                speaker="agent",
+                started_ms=2000,
+                ended_ms=3000,
+                text="When would you like the project to start?",
+                language="en-IN",
+                is_final=True,
+            ),
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=4,
+                speaker="participant",
+                started_ms=3000,
+                ended_ms=4000,
+                text="Next quarter.",
+                language="en-IN",
+                is_final=True,
+            ),
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=5,
+                speaker="agent",
+                started_ms=4000,
+                ended_ms=5000,
+                text="Would you like me to schedule a meeting with our specialist?",
+                language="en-IN",
+                is_final=True,
+            ),
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=6,
+                speaker="participant",
+                started_ms=5000,
+                ended_ms=6000,
+                text="Yes, please proceed.",
+                language="en-IN",
+                is_final=True,
+            ),
+        ]
+    )
+    session.add(
+        Qualification(
+            organization_id=ORGANIZATION_ID,
+            call_id=call.id,
+            need=None,
+            timeline=None,
+            scope=None,
+            authority_known=None,
+            budget_known=True,
+            objections=[],
+            interest=None,
+            requested_next_step=None,
+            evidence_segment_ids=[],
+        )
+    )
+    session.commit()
+
+    result = finalize_completed_call(session, organization_id=ORGANIZATION_ID, call_id=call.id)
+
+    assert result.qualification.need == "We need a SharePoint document migration."
+    assert result.qualification.timeline == "Next quarter."
+    assert result.qualification.budget_known is True
+    assert result.qualification.interest == "positive"
+    assert result.qualification.requested_next_step == "Human specialist follow-up requested"
+    assert result.handoff is not None
+    assert call.outcome == "handoff_requested"
+    assert len(result.qualification.evidence_segment_ids) == 3
     session.close()
 
 
@@ -179,9 +288,7 @@ def test_pricing_question_is_evidence_backed_and_high_priority(tmp_path: Path) -
     assert result.handoff is not None
     assert result.handoff.priority == "high"
     pricing = next(
-        item
-        for item in result.qualification.objections
-        if item["type"] == "pricing_or_commitment"
+        item for item in result.qualification.objections if item["type"] == "pricing_or_commitment"
     )
     assert pricing == {
         "type": "pricing_or_commitment",
