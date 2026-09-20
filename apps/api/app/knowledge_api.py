@@ -21,6 +21,7 @@ from app.business_profile import (
 )
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.jobs.service import enqueue_once, process_event
 from app.knowledge_schemas import (
     ApprovalRequest,
     BusinessProfileAnalysisResponse,
@@ -34,7 +35,6 @@ from app.knowledge_schemas import (
 )
 from app.persistence.models import AuditLog, ModelRun, Product, ProductVersion
 from app.rate_limits import enforce_rate_limit
-from app.jobs.service import enqueue_once, process_event
 
 router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"])
 QUALIFICATION_KEY = "_qualification_questions"
@@ -164,7 +164,10 @@ async def analyze_profile(
             except BusinessProfileError as web_exc:
                 # Website scraping failed (JS-only SPA, frameset, no readable text, etc.)
                 # Proceed using the user-supplied business description and services only.
-                website_warning = str(web_exc)
+                website_warning = (
+                    f"Website evidence could not be read ({web_exc}). "
+                    "The draft uses only the other evidence you supplied."
+                )
         total_bytes = 0
         for upload in uploads:
             content = await upload.read()
@@ -180,6 +183,11 @@ async def analyze_profile(
             )
             source_texts.append(document_text)
             profile_sources.append(make_source(filename, "document", document_text))
+        if website_warning and not source_texts:
+            raise BusinessProfileError(
+                "We could not read that website. Add a business description, services, "
+                "or a supporting document and try again."
+            )
         result = await run_in_threadpool(
             lambda: analyze_business_profile(
                 settings=settings,
@@ -259,7 +267,7 @@ async def analyze_profile(
             BusinessProfileSource.model_validate(item.model_dump()) for item in result.sources
         ],
         analysis_method=result.method,
-        warning=website_warning or result.warning,
+        warning=" ".join(filter(None, (website_warning, result.warning))) or None,
         analysis_token=analysis_token,
     )
 

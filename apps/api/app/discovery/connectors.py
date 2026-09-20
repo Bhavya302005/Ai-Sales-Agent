@@ -3,6 +3,7 @@ import socket
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -121,6 +122,55 @@ def visible_text(content: bytes, content_type: str) -> bytes:
     return (extracted or "").encode()
 
 
+class _FrameSourceParser(HTMLParser):
+    """Collect safe document metadata and legacy frame URLs without executing content."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.sources: list[str] = []
+        self.metadata: list[str] = []
+        self._inside_title = False
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        normalized_tag = tag.casefold()
+        values = dict(attrs)
+        if normalized_tag == "title":
+            self._inside_title = True
+        if normalized_tag == "meta":
+            name = (values.get("name") or values.get("property") or "").casefold()
+            value = (values.get("content") or "").strip()
+            if name in {"description", "keywords", "og:title", "og:description"} and value:
+                self.metadata.append(value)
+        if normalized_tag not in {"frame", "iframe"}:
+            return
+        source = values.get("src")
+        if source and len(self.sources) < 3:
+            self.sources.append(source.strip())
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.casefold() == "title":
+            self._inside_title = False
+
+    def handle_data(self, data: str) -> None:
+        value = data.strip()
+        if self._inside_title and value:
+            self.metadata.append(value)
+
+
+def frame_sources(content: bytes) -> list[str]:
+    parser = _FrameSourceParser()
+    parser.feed(content.decode("utf-8", errors="replace"))
+    return parser.sources
+
+
+def metadata_text(content: bytes) -> bytes:
+    parser = _FrameSourceParser()
+    parser.feed(content.decode("utf-8", errors="replace"))
+    return "\n".join(dict.fromkeys(parser.metadata)).encode()
+
+
 class ManualHTTPConnector:
     def __init__(
         self,
@@ -129,13 +179,22 @@ class ManualHTTPConnector:
         max_bytes: int,
         client: httpx.Client | None = None,
         resolver: Callable[[str, int], list[str]] = resolve_addresses,
+        follow_same_site_frame: bool = False,
+        allow_metadata_fallback: bool = False,
     ) -> None:
         self.allowed_hosts = allowed_hosts
         self.max_bytes = max_bytes
         self.client = client or httpx.Client(timeout=httpx.Timeout(10, connect=5))
         self.resolver = resolver
+        self.follow_same_site_frame = follow_same_site_frame
+        self.allow_metadata_fallback = allow_metadata_fallback
 
     def fetch_url(self, url: str, rights_note: str) -> FetchedSource:
+        return self._fetch_url(url, rights_note, may_follow_frame=True)
+
+    def _fetch_url(
+        self, url: str, rights_note: str, *, may_follow_frame: bool
+    ) -> FetchedSource:
         current_url = canonicalize_public_url(url, self.allowed_hosts, self.resolver)
         for _ in range(4):
             with self.client.stream(
@@ -162,6 +221,23 @@ class ManualHTTPConnector:
                     if len(content) > self.max_bytes:
                         raise SourcePolicyError("Source exceeds the configured byte limit")
                 normalized = visible_text(bytes(content), content_type)
+                if not normalized.strip():
+                    if self.follow_same_site_frame and may_follow_frame:
+                        current_host = (urlsplit(current_url).hostname or "").casefold()
+                        for source in frame_sources(bytes(content)):
+                            frame_url = urljoin(current_url, source)
+                            frame_host = (urlsplit(frame_url).hostname or "").casefold()
+                            if not frame_host or not (
+                                frame_host == current_host
+                                or frame_host.endswith(f".{current_host}")
+                            ):
+                                continue
+                            self.allowed_hosts.add(frame_host)
+                            return self._fetch_url(
+                                frame_url, rights_note, may_follow_frame=False
+                            )
+                    if self.allow_metadata_fallback:
+                        normalized = metadata_text(bytes(content))
                 if not normalized.strip():
                     raise SourcePolicyError("Source contains no readable text")
                 return FetchedSource(

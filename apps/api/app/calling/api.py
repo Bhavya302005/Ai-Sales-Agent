@@ -721,7 +721,9 @@ def refresh_provider_call(
                         started_ms=(sequence - 1) * 1000,
                         ended_ms=sequence * 1000,
                         text=text[:5000],
-                        language="unknown",
+                        # BUG FIX: use a valid locale instead of "unknown" so downstream
+                        # language-specific processing (e.g. TTS, scoring) doesn't fail.
+                        language="en-IN",
                         is_final=True,
                     )
                 )

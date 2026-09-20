@@ -294,6 +294,93 @@ def test_manual_connector_revalidates_redirect_and_extracts_visible_text() -> No
     assert fetched.content == b"ERP migration needed"
 
 
+def test_manual_connector_can_follow_one_same_site_legacy_frame() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "allowed.example":
+            return httpx.Response(
+                200,
+                headers={"Content-Type": "text/html"},
+                text=(
+                    "<html><head><title>Company</title></head>"
+                    '<frameset><frame src="https://site.allowed.example/home" /></frameset></html>'
+                ),
+            )
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/html"},
+            text="<html><body><h1>Secure cloud migration services</h1></body></html>",
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        connector = ManualHTTPConnector(
+            allowed_hosts={"allowed.example"},
+            max_bytes=10_000,
+            client=client,
+            resolver=lambda _host, _port: ["93.184.216.34"],
+            follow_same_site_frame=True,
+        )
+        fetched = connector.fetch_url(
+            "https://allowed.example/",
+            "The owner explicitly permits this company site to be processed.",
+        )
+
+    assert fetched.candidate.canonical_url == "https://site.allowed.example/home"
+    assert fetched.content == b"Secure cloud migration services"
+
+
+def test_manual_connector_business_mode_uses_metadata_for_js_shell() -> None:
+    html = (
+        "<html><head><title>Northstar IT Services</title>"
+        '<meta name="description" content="Cloud migration and AI automation for enterprises." />'
+        '<script type="module" src="/app.js"></script></head>'
+        '<body><div id="root"></div></body></html>'
+    )
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200, headers={"Content-Type": "text/html"}, text=html
+            )
+        )
+    ) as client:
+        connector = ManualHTTPConnector(
+            allowed_hosts={"allowed.example"},
+            max_bytes=10_000,
+            client=client,
+            resolver=lambda _host, _port: ["93.184.216.34"],
+            allow_metadata_fallback=True,
+        )
+        fetched = connector.fetch_url(
+            "https://allowed.example/",
+            "The owner explicitly permits this company site to be processed.",
+        )
+
+    assert b"Northstar IT Services" in fetched.content
+    assert b"Cloud migration and AI automation" in fetched.content
+
+
+def test_manual_connector_does_not_follow_external_frame() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/html"},
+            text='<html><frameset><frame src="https://evil.example/home" /></frameset></html>',
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        connector = ManualHTTPConnector(
+            allowed_hosts={"allowed.example"},
+            max_bytes=10_000,
+            client=client,
+            resolver=lambda _host, _port: ["93.184.216.34"],
+            follow_same_site_frame=True,
+        )
+        with pytest.raises(SourcePolicyError, match="no readable text"):
+            connector.fetch_url(
+                "https://allowed.example/",
+                "The owner explicitly permits this company site to be processed.",
+            )
+
+
 def test_manual_connector_rejects_oversized_response_before_processing() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(

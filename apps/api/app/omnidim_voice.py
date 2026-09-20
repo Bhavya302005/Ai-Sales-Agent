@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
@@ -263,6 +264,7 @@ def dispatch_omnidim_call(
         )
     )
     call.state = "connecting"
+    call.started_at = call.started_at or datetime.now(UTC)
     call.usage = {**call.usage, "provider_status": result.status}
     session.commit()
     return result

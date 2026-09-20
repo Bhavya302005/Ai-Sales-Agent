@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.discovery.exa_client import exa_search as _exa_raw
 
@@ -69,7 +69,7 @@ def _normalise_phone(raw: str) -> str:
     return ""
 
 
-def _extract_contacts(text: str) -> dict:
+def _extract_contacts(text: str) -> dict[str, Any]:
     phones: set[str] = set()
     for m in _E164.findall(text):
         n = _normalise_phone(m)
@@ -142,7 +142,7 @@ def _build_queries(item: DiscoveryItem) -> list[str]:
         company = raw_name
         if company:
             queries.append(f'"{company}" CEO OR Director OR "Head of" phone OR mobile OR email')
-            queries.append(f'"{company}" site:zoominfo.com OR site:rocketreach.co OR site:clutch.co phone')
+            queries.append(f'"{company}" site:zoominfo.com OR site:clutch.co phone')
             queries.append(f'"{company}" contact phone email "reach us"')
             queries.append(f'site:linkedin.com/company "{company}" phone OR contact OR email')
         if domain and "freelancer" not in domain and "linkedin" not in domain:
@@ -154,7 +154,7 @@ def _build_queries(item: DiscoveryItem) -> list[str]:
 
     return queries[:8]
 
-def enrich_contact(item: DiscoveryItem) -> dict:
+def enrich_contact(item: DiscoveryItem) -> dict[str, Any]:
     """
     Run the deep phone/email enrichment for a DiscoveryItem.
 

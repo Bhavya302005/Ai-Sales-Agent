@@ -4,7 +4,14 @@ import { BusinessSetup } from "./business-setup";
 
 export default async function OnboardingPage() {
   const offering = await getOffering();
-  const active = offering.versions.find((version) => version.is_active);
+  const storedActive = offering.versions.find((version) => version.is_active);
+  const isLegacyDemoProfile = Boolean(
+    storedActive &&
+    storedActive.analysis_method === null &&
+    storedActive.company_url === null &&
+    storedActive.profile_source_count === 0,
+  );
+  const active = isLegacyDemoProfile ? undefined : storedActive;
 
   return (
     <>
@@ -26,7 +33,7 @@ export default async function OnboardingPage() {
           <div><span>Evidence sources</span><strong>{active.profile_source_count}</strong></div>
         </section>
       ) : null}
-      <BusinessSetup productName={offering.product_name} active={active} />
+      <BusinessSetup productName={isLegacyDemoProfile ? "" : offering.product_name} active={active} />
     </>
   );
 }

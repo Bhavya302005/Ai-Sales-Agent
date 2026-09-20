@@ -13,6 +13,7 @@ from app.persistence.models import (
     CallbackRequest,
     CampaignLead,
     HandoffTask,
+    Lead,
     Membership,
     Qualification,
     TranscriptSegment,
@@ -452,6 +453,28 @@ def finalize_completed_call(
             dedupe_key=f"callback:{call.id}",
         )
         handoff_created = True
+
+    # BUG FIX: Update Lead.lifecycle and CampaignLead.state after call completion.
+    # Previously these were never updated, making the analytics funnel wrong.
+    new_lifecycle = "qualified" if qualification.interest == "positive" else "contacted"
+    lead_row = session.scalar(
+        select(Lead).where(
+            Lead.id == call.lead_id,
+            Lead.organization_id == organization_id,
+        )
+    )
+    if lead_row is not None and lead_row.lifecycle in {"discovered", "reviewed", "approved"}:
+        lead_row.lifecycle = new_lifecycle
+
+    campaign_leads = session.scalars(
+        select(CampaignLead).where(
+            CampaignLead.organization_id == organization_id,
+            CampaignLead.lead_id == call.lead_id,
+            CampaignLead.state.not_in({"attempts_exhausted", "qualified", "contacted"}),
+        )
+    ).all()
+    for cl in campaign_leads:
+        cl.state = new_lifecycle
 
     return FinalizationResult(
         qualification=qualification,

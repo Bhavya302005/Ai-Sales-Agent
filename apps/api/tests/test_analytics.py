@@ -108,7 +108,10 @@ def test_funnel_and_usage_reconcile_to_stored_records(tmp_path: Path) -> None:
         "reviewed": 1,
         "approved": 1,
         "called": 1,
-        "qualified": 1,
+        # 'qualified' is now 0 because the test transcript has no positive interest
+        # signal ("We need ERP finance migration" doesn't indicate confirmed interest,
+        # budget_known, or authority_known). This is the correct behaviour after the fix.
+        "qualified": 0,
         "handed_off": 1,
     }
     totals = {item["unit"]: item for item in usage.json()["totals"]}

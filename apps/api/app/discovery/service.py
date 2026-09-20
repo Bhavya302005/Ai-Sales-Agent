@@ -5,12 +5,11 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from app.discovery.exa_client import exa_search as _exa_raw
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.conversation.script import QUALIFICATION_QUESTIONS
 from app.discovery.connectors import FetchedSource, SourceCandidate
+from app.discovery.exa_client import exa_search as _exa_raw
 from app.persistence.models import ProductVersion
 
 OpportunityType = Literal[

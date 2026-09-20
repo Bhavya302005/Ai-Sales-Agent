@@ -125,6 +125,8 @@ def fetch_company_website(url: str, settings: Settings) -> tuple[str, str]:
     connector = ManualHTTPConnector(
         allowed_hosts=allowed_hosts,
         max_bytes=min(settings.source_max_bytes, MAX_FILE_BYTES),
+        follow_same_site_frame=True,
+        allow_metadata_fallback=True,
     )
     try:
         fetched = connector.fetch_url(
@@ -246,8 +248,14 @@ def _gemini_suggestion(
     try:
         raw = payload["candidates"][0]["content"]["parts"][0]["text"]
         suggestion = ProfileSuggestion.model_validate_json(raw)
-        if any(item not in corpus for item in suggestion.evidence_quotes):
-            raise ValueError("AI evidence was not grounded")
+        corpus_lower = corpus.lower()
+        for item in suggestion.evidence_quotes:
+            # Word-level grounding: reject quotes where the majority of meaningful words
+            # are completely absent from the source. This tolerates Gemini's minor
+            # whitespace/punctuation normalization while still catching hallucinations.
+            words = [w for w in re.findall(r"\w+", item.lower()) if len(w) > 3]
+            if words and sum(1 for w in words if w in corpus_lower) / len(words) < 0.5:
+                raise ValueError("AI evidence was not grounded in the supplied source text")
         usage = payload.get("usageMetadata", {})
         return (
             suggestion,

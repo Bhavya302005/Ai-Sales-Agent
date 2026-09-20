@@ -1,5 +1,5 @@
-from datetime import datetime
 import threading
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import Auth
 from app.config import Settings, get_settings
-from app.db import get_session, get_engine
+from app.db import get_engine, get_session
 from app.discovery.ingestion import ingest_source
 from app.discovery.phone_enricher import enrich_contact
 from app.discovery.service import DiscoveryItem, discover_with_exa, load_demo_snapshot

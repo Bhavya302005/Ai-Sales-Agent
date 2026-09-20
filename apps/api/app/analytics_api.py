@@ -109,7 +109,16 @@ def get_funnel(
     qualifications = session.scalars(
         select(Qualification).where(Qualification.organization_id == auth.organization_id)
     ).all()
-    qualified = sum(bool(item.evidence_segment_ids) for item in qualifications)
+    # BUG FIX: A qualification only counts if the prospect showed real qualifying signals.
+    # Previously any transcript presence counted as "qualified" — even disinterested calls.
+    qualified = sum(
+        bool(
+            item.interest == "positive"
+            or item.budget_known is True
+            or item.authority_known is True
+        )
+        for item in qualifications
+    )
     handed_off = (
         session.scalar(
             select(func.count(func.distinct(HandoffTask.lead_id))).where(

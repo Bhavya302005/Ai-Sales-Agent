@@ -26,8 +26,11 @@ export default async function SourcesPage({ searchParams }: { searchParams: Sear
   if (filters.actionable) query.set("actionable", filters.actionable);
   const [results, status] = await Promise.all([getDiscovery(query.toString()), getDiscoveryStatus()]);
   const showDiagnostics = diagnosticsEnabled();
-  const direct = results.filter((item) => item.actionable);
-  const signals = results.filter((item) => !item.actionable);
+  const visibleResults = showDiagnostics
+    ? results
+    : results.filter((item) => !item.original_url.startsWith("fixture://"));
+  const direct = visibleResults.filter((item) => item.actionable);
+  const signals = visibleResults.filter((item) => !item.actionable);
   return (
     <>
       <header className="page-header">

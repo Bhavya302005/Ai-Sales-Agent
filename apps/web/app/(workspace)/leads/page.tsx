@@ -1,9 +1,13 @@
 import Link from "next/link";
 
 import { getLeads } from "@/lib/api";
+import { diagnosticsEnabled } from "@/lib/runtime";
 
 export default async function LeadsPage() {
   const leads = await getLeads();
+  const visibleLeads = diagnosticsEnabled()
+    ? leads
+    : leads.filter((lead) => !lead.source_url.startsWith("fixture://"));
   return (
     <>
       <header className="page-header">
@@ -14,7 +18,7 @@ export default async function LeadsPage() {
         <span className="mode-badge">Ranked by evidence and fit</span>
       </header>
       <section className="lead-list" aria-label="Opportunities">
-        {leads.map((lead) => (
+        {visibleLeads.map((lead) => (
           <Link className="lead-row" href={`/leads/${lead.id}`} key={lead.id}>
             <div>
               <div className="lead-meta">
@@ -31,7 +35,7 @@ export default async function LeadsPage() {
             </div>
           </Link>
         ))}
-        {leads.length === 0 && (
+        {visibleLeads.length === 0 && (
           <div className="empty-panel">
             <h2>No opportunities yet.</h2>
             <p>Connect a discovery source or import consenting leads into a campaign.</p>

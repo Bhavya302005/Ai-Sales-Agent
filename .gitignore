@@ -37,3 +37,7 @@ job_scraper/**/*.json
 job_scraper/*.csv
 job_scraper/*.xlsx
 job_scraper/*.json
+
+# Local demo/test lead files with contact numbers
+demo_leads.csv
+test_lead.csv
