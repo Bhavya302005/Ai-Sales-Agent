@@ -49,8 +49,14 @@ describe("BusinessSetup", () => {
     render(<BusinessSetup productName="Northstar" />);
 
     expect(screen.getByRole("heading", { name: "What does your company sell?" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Company website"), {
+      target: { value: "https://northstar.example" },
+    });
     fireEvent.change(screen.getByLabelText("Business description"), {
       target: { value: "We help companies modernize document collaboration securely." },
+    });
+    fireEvent.change(screen.getByLabelText("Products or services — one per line"), {
+      target: { value: "SharePoint migration\nPower Platform automation" },
     });
     fireEvent.submit(screen.getByRole("button", { name: "Analyze my business" }).closest("form")!);
 
@@ -61,5 +67,38 @@ describe("BusinessSetup", () => {
     expect(screen.getByText("Find leads and call")).toBeVisible();
     expect(screen.getByText("Call my own leads")).toBeVisible();
     expect(screen.getByRole("button", { name: "Confirm profile and continue" })).toBeVisible();
+    expect(screen.getAllByLabelText("Company name")[0]).toHaveValue("Northstar");
+    expect(screen.getByLabelText("Company website")).toHaveValue("https://northstar.example");
+    expect(screen.getByLabelText("Business description")).toHaveValue(
+      "We help companies modernize document collaboration securely.",
+    );
+    expect(screen.getAllByLabelText("Products or services — one per line")[0]).toHaveValue(
+      "SharePoint migration\nPower Platform automation",
+    );
+  });
+
+  it("preserves entered evidence when analysis fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ detail: "Temporary analysis error" }),
+      }),
+    );
+    render(<BusinessSetup productName="" />);
+
+    fireEvent.change(screen.getByLabelText("Company name"), {
+      target: { value: "Northstar" },
+    });
+    fireEvent.change(screen.getByLabelText("Business description"), {
+      target: { value: "Enterprise workflow consulting and implementation." },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: "Analyze my business" }).closest("form")!);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Temporary analysis error");
+    expect(screen.getByLabelText("Company name")).toHaveValue("Northstar");
+    expect(screen.getByLabelText("Business description")).toHaveValue(
+      "Enterprise workflow consulting and implementation.",
+    );
   });
 });

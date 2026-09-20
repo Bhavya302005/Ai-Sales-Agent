@@ -15,6 +15,10 @@ export function BusinessSetup({ productName, active }: Props) {
   const [analysis, setAnalysis] = useState<BusinessProfileAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState(productName);
+  const [companyUrl, setCompanyUrl] = useState(active?.company_url ?? "");
+  const [businessDetails, setBusinessDetails] = useState(active?.description ?? "");
+  const [services, setServices] = useState(active ? lines(active.services) : "");
 
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,10 +56,10 @@ export function BusinessSetup({ productName, active }: Props) {
         <div className="section-heading"><div><p className="kicker">Step 1 · Business evidence</p><h2>What does your company sell?</h2></div></div>
         <p className="panel-copy">Add what you already have. We propose a profile; nothing becomes callable until you review and confirm it.</p>
         <form onSubmit={analyze} className="knowledge-form">
-          <label>Company name<input name="company_name" required minLength={2} defaultValue={productName} /></label>
-          <label>Company website<input name="company_url" type="url" placeholder="https://yourcompany.com" defaultValue={active?.company_url ?? ""} /></label>
-          <label className="wide-field">Business description<textarea name="business_details" rows={4} placeholder="What you do, the outcomes you deliver, and what makes you different…" defaultValue={active?.description ?? ""} /></label>
-          <label className="wide-field">Products or services — one per line<textarea name="services" rows={4} placeholder={"Microsoft 365 consulting\nSharePoint migration\nEmployee intranet implementation"} defaultValue={active ? lines(active.services) : ""} /></label>
+          <label>Company name<input name="company_name" required minLength={2} value={companyName} onChange={(event) => setCompanyName(event.target.value)} /></label>
+          <label>Company website<input name="company_url" type="url" placeholder="https://yourcompany.com" value={companyUrl} onChange={(event) => setCompanyUrl(event.target.value)} /></label>
+          <label className="wide-field">Business description<textarea name="business_details" rows={4} placeholder="What you do, the outcomes you deliver, and what makes you different…" value={businessDetails} onChange={(event) => setBusinessDetails(event.target.value)} /></label>
+          <label className="wide-field">Products or services — one per line<textarea name="services" rows={4} placeholder={"Microsoft 365 consulting\nSharePoint migration\nEmployee intranet implementation"} value={services} onChange={(event) => setServices(event.target.value)} /></label>
           <label className="wide-field upload-zone">Supporting documents (optional)<input name="documents" type="file" multiple accept=".txt,.md,.html,.htm,.pdf,.docx" /><small>TXT, Markdown, HTML, PDF, or DOCX · up to 5 files · 2 MB each.</small></label>
           {error ? <p className="form-error wide-field" role="alert">{error}</p> : null}
           <div className="wide-field form-submit-row"><p>Website and document content is treated as evidence—not instructions.</p><button className="primary-button" disabled={loading} type="submit">{loading ? "Understanding your business…" : "Analyze my business"}</button></div>
