@@ -214,8 +214,8 @@ def test_natural_provider_questions_repair_qualification_and_create_handoff(
                 speaker="agent",
                 started_ms=4000,
                 ended_ms=5000,
-                text="Would you like me to schedule a meeting with our specialist?",
-                language="en-IN",
+                text="શું તમને અમારા કોઈ વિશેષજ્ઞ સાથે વાત કરવાની ઈચ્છા છે?",
+                language="gu-IN",
                 is_final=True,
             ),
             TranscriptSegment(
@@ -225,8 +225,30 @@ def test_natural_provider_questions_repair_qualification_and_create_handoff(
                 speaker="participant",
                 started_ms=5000,
                 ended_ms=6000,
-                text="Yes, please proceed.",
-                language="en-IN",
+                text="હા છે",
+                language="gu-IN",
+                is_final=True,
+            ),
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=7,
+                speaker="agent",
+                started_ms=6000,
+                ended_ms=7000,
+                text="કયો દિવસ કે સમય તમારા માટે યોગ્ય રહેશે?",
+                language="gu-IN",
+                is_final=True,
+            ),
+            TranscriptSegment(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                sequence=8,
+                speaker="participant",
+                started_ms=7000,
+                ended_ms=8000,
+                text="આવતા અઠવાડિયે સોમવારે કોઈપણ સમય.",
+                language="gu-IN",
                 is_final=True,
             ),
         ]
@@ -254,10 +276,12 @@ def test_natural_provider_questions_repair_qualification_and_create_handoff(
     assert result.qualification.timeline == "Next quarter."
     assert result.qualification.budget_known is True
     assert result.qualification.interest == "positive"
-    assert result.qualification.requested_next_step == "Human specialist follow-up requested"
+    assert result.qualification.requested_next_step == (
+        "Preferred follow-up time: આવતા અઠવાડિયે સોમવારે કોઈપણ સમય."
+    )
     assert result.handoff is not None
     assert call.outcome == "handoff_requested"
-    assert len(result.qualification.evidence_segment_ids) == 3
+    assert len(result.qualification.evidence_segment_ids) == 4
     session.close()
 
 

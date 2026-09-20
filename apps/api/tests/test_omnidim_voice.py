@@ -126,7 +126,11 @@ def test_recording_download_is_bounded_to_omnidim_audio() -> None:
                 },
             )
         assert request.url.host == "media.omnidim.io"
-        return httpx.Response(200, content=b"synthetic-audio", headers={"content-type": "audio/mpeg"})
+        return httpx.Response(
+            200,
+            content=b"synthetic-audio",
+            headers={"content-type": "audio/mpeg"},
+        )
 
     http = httpx.Client(
         base_url="https://backend.omnidim.io/api/v1",

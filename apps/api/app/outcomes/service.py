@@ -92,6 +92,7 @@ AUTHORITY_QUESTIONS = (
     "involved",
     "निर्णय",
     "फैसला",
+    "कौन लेगा",
     "નિર્ણય",
 )
 INTEREST_QUESTIONS = (
@@ -216,9 +217,6 @@ def _derive_fields(segments: list[TranscriptSegment]) -> dict[str, Any]:
                     }
                 )
             used = True
-        elif any(term in previous_agent for term in TIMELINE_QUESTIONS):
-            result["timeline"] = text
-            used = True
         elif "budget" in previous_agent or "बजट" in previous_agent:
             result["budget_known"] = (
                 None
@@ -233,17 +231,20 @@ def _derive_fields(segments: list[TranscriptSegment]) -> dict[str, Any]:
                 else not any(f" {answer} " in f" {normalized} " for answer in NO_ANSWERS)
             )
             used = True
+        elif any(term in previous_agent for term in TIMELINE_QUESTIONS):
+            result["timeline"] = text
+            used = True
         elif any(term in previous_agent for term in INTEREST_QUESTIONS):
             # Interest and next-step values are resolved below from the answer.
             used = True
-        elif any(
-            term in previous_agent
-            for term in ("workloads", "business processes", *NEED_QUESTIONS)
-        ):
+        elif "workloads" in previous_agent:
             result["need"] = text
             used = True
         elif any(term in previous_agent for term in SCOPE_QUESTIONS):
             result["scope"] = text
+            used = True
+        elif any(term in previous_agent for term in NEED_QUESTIONS):
+            result["need"] = text
             used = True
 
         if _contains(normalized, PRICING_OR_COMMITMENT):
@@ -353,7 +354,7 @@ def finalize_completed_call(
             "interest",
             "requested_next_step",
         ):
-            if getattr(qualification, field) is None and derived[field] is not None:
+            if derived[field] is not None:
                 setattr(qualification, field, derived[field])
         if not qualification.objections and derived["objections"]:
             qualification.objections = derived["objections"]

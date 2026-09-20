@@ -35,8 +35,8 @@ Status values: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`.
 | P01 | DONE | Judge-facing journey, direct/signal separation, provider badges, filters, analytics, and actionable failure labels |
 | P02 | DONE | Guarded tenant-only demo reset, setup/demo/limitations runbook, migration and release commands |
 | P03 | DONE | Three consecutive clean Chromium rehearsals passed with detailed qualification, handoff, CRM sync, and auth checks |
-| R02 | IN_PROGRESS | Repair and verify OmniDimension post-call ingestion for recording, summary, qualification, and evidence-backed human handoff |
+| R02 | DONE | Live OmniDimension call verified; recording and summary ingestion, multilingual evidence-backed qualification, callback intent, and human handoff are repaired |
 | N01 | DONE | Notifications, owner controls, recurrence/retries, callbacks, HubSpot import, security hardening, UI, and PostgreSQL migration round-trip pass |
 | P04 | DONE | Installable responsive web, honest demo subscription/voice usage, tenant-scoped rule-based abuse signals, coverage matrix, focused browser checks, and release package pass |
-| P05 | TODO | Record the final 3–5 minute demo, review it for sensitive data and claim accuracy, then submit only with explicit user authorization |
+| P05 | IN_PROGRESS | Record the final 3–5 minute demo, review it for sensitive data and claim accuracy, then submit only with explicit user authorization |
 | P06 | DONE | Default localhost follows the production-MVP journey; test-only controls are feature-flagged, sample data is honestly labelled, and all browser/code gates pass |
