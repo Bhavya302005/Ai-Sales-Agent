@@ -11,7 +11,10 @@ The supported story is:
 - **Calling Only:** create a calling-only campaign and upload the sample CSV/XLSX schema shown below.
 - **Discovery:** saved snapshot is guaranteed; Exa is optional and is always labelled live or failed.
 - **CRM:** mock is the verified default. HubSpot is used only when configured and independently tested.
-- **PSTN:** Twilio is provider-ready, but the browser call remains the guaranteed presentation path.
+- **PSTN:** OmniDimension is configured and its agent endpoint is authenticated read-only; the live
+  call/result round trip remains deferred. Browser voice is the guaranteed presentation path.
+- **Mobile:** the same responsive web product is installable through its application manifest;
+  native Android/iOS store binaries are not claimed.
 
 ## Clean local start
 
@@ -67,6 +70,7 @@ Run the existing Playwright critical journey three times from a reset before rec
 
 ## Honest cut lines
 
-Roadmap/not demonstrated as complete: native Android/iOS, subscriptions and payments, inbound calls,
-voicemail automation, fraud detection, unrestricted authenticated scraping, all-language coverage,
-and enterprise-scale scheduling. English and Hindi are the supported demo languages.
+Roadmap/not demonstrated as complete: native Android/iOS binaries, payments/invoices, inbound calls,
+voicemail automation, predictive fraud modelling, unrestricted authenticated scraping, all-language
+coverage, and enterprise-scale scheduling. The demo shows a non-billable plan with stored usage and
+rule-based safety signals. English and Hindi are the supported demo languages.

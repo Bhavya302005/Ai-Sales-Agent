@@ -27,6 +27,16 @@ export default async function AnalyticsPage() {
       </section>
       <div className="analytics-grid">
         <section className="analytics-panel">
+          <p className="kicker">Subscription and billing</p><h2>{usage.plan_name}</h2>
+          <div className="signal-grid">
+            <div><span>Status</span><strong>{usage.subscription_status.replaceAll("_", " ")}</strong></div>
+            <div><span>Billing mode</span><strong>{usage.billing_mode.replaceAll("_", " ")}</strong></div>
+            <div><span>Voice usage</span><strong>{Number(usage.totals.find((item) => item.unit === "call_seconds")?.quantity ?? 0).toLocaleString("en-IN")} sec</strong></div>
+            <div><span>Recorded estimate</span><strong>₹{Number(usage.total_estimated_cost_inr).toFixed(2)}</strong></div>
+          </div>
+          <p className="fine-print">Demo visibility only. No payment processor is connected and no charge or invoice is created.</p>
+        </section>
+        <section className="analytics-panel">
           <p className="kicker">Discovery coverage</p><h2>Results by source and type</h2>
           <div className="breakdown-grid">
             <div>

@@ -59,6 +59,9 @@ class UsageResponse(BaseModel):
     average_voice_latency_ms: int | None
     crm_retrying: int
     crm_action_required: int
+    plan_name: str = "Hackathon Demo"
+    subscription_status: str = "demo_active"
+    billing_mode: str = "non_billable"
     cost_label: str = "Estimated unless actual provider cost is present"
 
 

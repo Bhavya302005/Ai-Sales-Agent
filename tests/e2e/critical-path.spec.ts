@@ -199,6 +199,8 @@ test("owner controls and due campaign processing remain operator-driven", async 
   await expect(page).toHaveURL(/\/leads$/);
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Rule-based security posture" })).toBeVisible();
+  await expect(page.getByText(/not a predictive fraud model/i)).toBeVisible();
   await page.getByRole("button", { name: "Pause all calls" }).click();
   await expect(page.getByRole("heading", { name: "Calling paused" })).toBeVisible();
   await page.getByRole("button", { name: "Resume calls" }).click();
@@ -209,6 +211,25 @@ test("owner controls and due campaign processing remain operator-driven", async 
   await expect(page.getByText(/ready|scheduled/).first()).toBeVisible();
   await page.goto("/notifications");
   await expect(page.getByText("Campaign is ready")).toBeVisible();
+  await page.goto("/analytics");
+  await expect(page.getByRole("heading", { name: "Hackathon Demo" })).toBeVisible();
+  await expect(page.getByText(/No payment processor is connected/i)).toBeVisible();
+});
+
+test("mobile workspace remains usable as an installable web app", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Continue as demo owner" }).click();
+  await expect(page).toHaveURL(/\/leads$/);
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", /manifest\.webmanifest/);
+  await expect(page.locator(".sidebar").getByRole("link", { name: "Campaign" })).toBeVisible();
+  const overflow = await page.evaluate(() => ({
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+  expect(overflow, JSON.stringify(overflow)).toMatchObject({
+    documentWidth: overflow.viewportWidth,
+  });
 });
 
 test("protected workspace routes return to login after sign-out", async ({ page }) => {

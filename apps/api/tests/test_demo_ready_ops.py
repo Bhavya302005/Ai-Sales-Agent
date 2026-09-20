@@ -134,9 +134,13 @@ def test_admin_prevents_removing_final_owner_and_persists_call_pause(tmp_path: P
             headers=_headers(settings),
             json={"calls_paused": True},
         )
+        security = client.get("/api/v1/admin/security-overview", headers=_headers(settings))
 
         assert blocked.status_code == 409
         assert paused.json()["effective_calls_paused"] is True
+        assert security.json()["posture"] == "clear"
+        assert security.json()["active_suppressions"] == 0
+        assert "predictive fraud model" in security.json()["label"]
         control = session.scalar(
             select(OrganizationControl).where(
                 OrganizationControl.organization_id == ORGANIZATION_ID
@@ -386,7 +390,11 @@ def test_operator_cannot_access_owner_admin(tmp_path: Path) -> None:
         )
         session.commit()
         response = client.get("/api/v1/admin/members", headers=_headers(settings, operator_id))
+        security = client.get(
+            "/api/v1/admin/security-overview", headers=_headers(settings, operator_id)
+        )
         assert response.status_code == 403
+        assert security.status_code == 403
 
 
 def test_hubspot_provider_uses_versioned_contacts_and_cursor() -> None:

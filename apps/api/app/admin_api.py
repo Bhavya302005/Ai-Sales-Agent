@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth import Auth
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.persistence.models import AuditLog, Membership, OrganizationControl
+from app.persistence.models import AuditLog, Call, Membership, OrganizationControl, Suppression
 from app.rate_limits import enforce_rate_limit
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -56,6 +56,16 @@ class RuntimeControlResponse(BaseModel):
 
 class RuntimeControlUpdate(BaseModel):
     calls_paused: bool
+
+
+class SecurityOverviewResponse(BaseModel):
+    posture: Literal["clear", "review"]
+    blocked_calls: int
+    failed_calls: int
+    active_suppressions: int
+    recent_sensitive_changes: int
+    safeguards: list[str]
+    label: str = "Rule-based demo safeguards; not a predictive fraud model"
 
 
 def _control(session: Session, organization_id: UUID) -> OrganizationControl:
@@ -220,6 +230,52 @@ def get_runtime_controls(
         calls_paused=row.calls_paused,
         environment_kill_switch=settings.calls_kill_switch,
         effective_calls_paused=row.calls_paused or settings.calls_kill_switch,
+    )
+
+
+@router.get("/security-overview", response_model=SecurityOverviewResponse)
+def security_overview(
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+) -> SecurityOverviewResponse:
+    """Return tenant-scoped operational signals without exposing contact data."""
+    _require_owner(auth)
+    blocked_calls = session.scalar(
+        select(func.count()).select_from(Call).where(
+            Call.organization_id == auth.organization_id,
+            Call.state == "blocked",
+        )
+    ) or 0
+    failed_calls = session.scalar(
+        select(func.count()).select_from(Call).where(
+            Call.organization_id == auth.organization_id,
+            Call.state == "failed",
+        )
+    ) or 0
+    active_suppressions = session.scalar(
+        select(func.count()).select_from(Suppression).where(
+            Suppression.organization_id == auth.organization_id,
+        )
+    ) or 0
+    recent_sensitive_changes = session.scalar(
+        select(func.count()).select_from(AuditLog).where(
+            AuditLog.organization_id == auth.organization_id,
+            AuditLog.action.in_(["membership_updated", "runtime_controls_updated"]),
+        )
+    ) or 0
+    return SecurityOverviewResponse(
+        posture="review" if failed_calls >= 3 else "clear",
+        blocked_calls=blocked_calls,
+        failed_calls=failed_calls,
+        active_suppressions=active_suppressions,
+        recent_sensitive_changes=recent_sensitive_changes,
+        safeguards=[
+            "Consent and approval gates",
+            "Suppression enforcement",
+            "Fixed-window API rate limits",
+            "Manual dispatch and organization kill switch",
+            "Tenant-isolated audit trail",
+        ],
     )
 
 

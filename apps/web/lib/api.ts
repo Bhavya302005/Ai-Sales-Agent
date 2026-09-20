@@ -313,6 +313,9 @@ export type Usage = {
   average_voice_latency_ms: number | null;
   crm_retrying: number;
   crm_action_required: number;
+  plan_name: string;
+  subscription_status: string;
+  billing_mode: string;
   cost_label: string;
 };
 
@@ -361,6 +364,16 @@ export type RuntimeControls = {
 };
 
 export type ProviderHealth = { providers: Record<string, string> };
+
+export type SecurityOverview = {
+  posture: "clear" | "review";
+  blocked_calls: number;
+  failed_calls: number;
+  active_suppressions: number;
+  recent_sensitive_changes: number;
+  safeguards: string[];
+  label: string;
+};
 
 export type CallingProvider = {
   transport: "browser" | "twilio" | "omnidim" | "exotel";
@@ -504,14 +517,16 @@ export async function getAdmin(auditAction = "", auditOffset = 0): Promise<{
   audit: AuditEntry[];
   controls: RuntimeControls;
   health: ProviderHealth;
+  security: SecurityOverview;
 }> {
-  const [members, audit, controls, health] = await Promise.all([
+  const [members, audit, controls, health, security] = await Promise.all([
     apiFetch<AdminMember[]>("/api/v1/admin/members"),
     apiFetch<AuditEntry[]>(`/api/v1/admin/audit-logs?limit=25&offset=${auditOffset}${auditAction ? `&action=${encodeURIComponent(auditAction)}` : ""}`),
     apiFetch<RuntimeControls>("/api/v1/admin/runtime-controls"),
     apiFetch<ProviderHealth>("/api/v1/admin/provider-health"),
+    apiFetch<SecurityOverview>("/api/v1/admin/security-overview"),
   ]);
-  return { members, audit, controls, health };
+  return { members, audit, controls, health, security };
 }
 
 export async function getCallbacks(): Promise<CallbackRequest[]> {

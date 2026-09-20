@@ -35,5 +35,7 @@ Status values: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`.
 | P01 | DONE | Judge-facing journey, direct/signal separation, provider badges, filters, analytics, and actionable failure labels |
 | P02 | DONE | Guarded tenant-only demo reset, setup/demo/limitations runbook, migration and release commands |
 | P03 | DONE | Three consecutive clean Chromium rehearsals passed with detailed qualification, handoff, CRM sync, and auth checks |
-| R02 | IN_PROGRESS | OmniDimension outbound AI-call integration selected; manual dispatch and result verification are being completed for one consenting test number |
+| R02 | BLOCKED | OmniDimension agent authentication is verified read-only; the one consenting live-call dispatch/result check is deliberately deferred by the operator |
 | N01 | DONE | Notifications, owner controls, recurrence/retries, callbacks, HubSpot import, security hardening, UI, and PostgreSQL migration round-trip pass |
+| P04 | DONE | Installable responsive web, honest demo subscription/voice usage, tenant-scoped rule-based abuse signals, coverage matrix, focused browser checks, and release package pass |
+| P05 | IN_PROGRESS | Record the final 3–5 minute demo, review it for sensitive data and claim accuracy, then submit only with explicit user authorization |

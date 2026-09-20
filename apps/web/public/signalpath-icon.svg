@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SignalPath">
+  <rect width="512" height="512" rx="112" fill="#07100d"/>
+  <path d="M116 352V160h90c74 0 116 34 116 94s-42 98-116 98h-90Zm62-54h30c31 0 51-15 51-44s-20-41-51-41h-30v85Z" fill="#f5f7f2"/>
+  <path d="M302 352c0-52 42-94 94-94v62c-18 0-32 14-32 32h-62Z" fill="#79f2b0"/>
+  <circle cx="396" cy="164" r="36" fill="#79f2b0"/>
+</svg>
