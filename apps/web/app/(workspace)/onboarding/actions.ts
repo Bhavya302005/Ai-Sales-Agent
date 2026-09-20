@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { apiFetch, type OfferingVersion } from "@/lib/api";
 
@@ -56,4 +57,35 @@ export async function approveOfferingVersion(formData: FormData) {
     },
   );
   revalidatePath("/onboarding");
+}
+
+export async function confirmBusinessProfile(formData: FormData) {
+  const workflowMode = String(formData.get("workflow_mode") ?? "leads_and_calling");
+  await apiFetch<OfferingVersion>("/api/v1/knowledge/business-profile/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      company_name: String(formData.get("company_name") ?? ""),
+      description: String(formData.get("description") ?? ""),
+      services: lines(formData, "services"),
+      icp: {
+        geographies: lines(formData, "geographies"),
+        industries: lines(formData, "industries"),
+        needs: lines(formData, "needs"),
+      },
+      target_customers: lines(formData, "target_customers"),
+      facts: facts(formData),
+      exclusions: lines(formData, "exclusions"),
+      pricing_policy: String(formData.get("pricing_policy") ?? ""),
+      qualification_questions: lines(formData, "qualification_questions"),
+      handoff_conditions: lines(formData, "handoff_conditions"),
+      analysis_token: String(formData.get("analysis_token") ?? ""),
+      workflow_mode: workflowMode,
+      confirmed: true,
+    }),
+  });
+  revalidatePath("/onboarding");
+  revalidatePath("/sources");
+  revalidatePath("/campaigns");
+  redirect(workflowMode === "calling_only" ? "/campaigns?start=upload" : "/sources?start=discover");
 }

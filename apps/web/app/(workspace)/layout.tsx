@@ -24,7 +24,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   return (
     <div className="product-shell">
       <aside className="sidebar">
-        <Link className="brand" href="/leads">
+        <Link className="brand" href="/onboarding">
           Signal<span>Path</span>
         </Link>
         <div className="workspace-label">

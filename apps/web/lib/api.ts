@@ -109,6 +109,34 @@ export type OfferingVersion = {
   is_active: boolean;
   is_callable: boolean;
   created_at: string;
+  company_url: string | null;
+  services: string[];
+  target_customers: string[];
+  analysis_method: string | null;
+  profile_source_count: number;
+};
+
+export type BusinessProfileAnalysis = {
+  company_name: string;
+  company_url: string | null;
+  description: string;
+  services: string[];
+  icp: { geographies: string[]; industries: string[]; needs: string[] };
+  target_customers: string[];
+  facts: Record<string, string>;
+  exclusions: string[];
+  pricing_policy: string;
+  qualification_questions: string[];
+  handoff_conditions: string[];
+  sources: Array<{
+    label: string;
+    kind: "website" | "document" | "user_input";
+    content_hash: string;
+    excerpt: string;
+  }>;
+  analysis_method: "gemini" | "deterministic";
+  warning: string | null;
+  analysis_token: string;
 };
 
 export type Offering = {

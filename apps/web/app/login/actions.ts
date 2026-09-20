@@ -20,11 +20,10 @@ export async function enterDemoWorkspace() {
     path: "/",
     maxAge: 60 * 60 * 8,
   });
-  redirect("/leads");
+  redirect("/onboarding");
 }
 
 export async function signOut() {
   (await cookies()).delete("sales_agent_session");
   redirect("/login");
 }
-

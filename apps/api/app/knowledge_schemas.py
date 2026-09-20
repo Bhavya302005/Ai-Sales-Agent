@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -63,6 +64,11 @@ class OfferingVersionResponse(BaseModel):
     is_active: bool
     is_callable: bool
     created_at: datetime
+    company_url: str | None = None
+    services: list[str] = []
+    target_customers: list[str] = []
+    analysis_method: str | None = None
+    profile_source_count: int = 0
 
 
 class OfferingResponse(BaseModel):
@@ -74,6 +80,47 @@ class OfferingResponse(BaseModel):
 
 class ApprovalRequest(BaseModel):
     reason: str = Field(min_length=10, max_length=500)
+
+
+class BusinessProfileSource(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    kind: Literal["website", "document", "user_input"]
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    excerpt: str = Field(min_length=1, max_length=600)
+
+
+class BusinessProfileAnalysisResponse(BaseModel):
+    company_name: str
+    company_url: str | None
+    description: str
+    services: list[str]
+    icp: ICPDefinition
+    target_customers: list[str]
+    facts: dict[str, str]
+    exclusions: list[str]
+    pricing_policy: str
+    qualification_questions: list[str]
+    handoff_conditions: list[str]
+    sources: list[BusinessProfileSource]
+    analysis_method: Literal["gemini", "deterministic"]
+    warning: str | None
+    analysis_token: str
+
+
+class BusinessProfileConfirm(BaseModel):
+    company_name: str = Field(min_length=2, max_length=200)
+    description: str = Field(min_length=20, max_length=4000)
+    services: list[str] = Field(min_length=1, max_length=20)
+    icp: ICPDefinition
+    target_customers: list[str] = Field(min_length=1, max_length=20)
+    facts: dict[str, str] = Field(min_length=1, max_length=50)
+    exclusions: list[str] = Field(min_length=1, max_length=30)
+    pricing_policy: str = Field(min_length=10, max_length=2000)
+    qualification_questions: list[str] = Field(min_length=1, max_length=20)
+    handoff_conditions: list[str] = Field(min_length=1, max_length=20)
+    analysis_token: str = Field(min_length=20, max_length=20_000)
+    workflow_mode: Literal["leads_and_calling", "calling_only"]
+    confirmed: Literal[True]
 
 
 class KnowledgeSearchResponse(BaseModel):

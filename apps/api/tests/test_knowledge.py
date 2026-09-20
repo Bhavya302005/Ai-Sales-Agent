@@ -13,7 +13,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.demo_ids import ORGANIZATION_ID, USER_ID
 from app.main import app
-from app.persistence.models import AuditLog, Base, Membership
+from app.persistence.models import AuditLog, Base, Membership, ModelRun, Product
 
 
 @contextmanager
@@ -138,3 +138,110 @@ def test_operator_can_draft_but_cannot_approve(tmp_path: Path) -> None:
 
     assert created.status_code == 201
     assert response.status_code == 403
+
+
+def test_business_profile_analysis_and_confirmation_are_reviewed_and_versioned(
+    tmp_path: Path,
+) -> None:
+    with _client(tmp_path / "business-profile.db") as (client, settings, session):
+        headers = _headers(settings)
+        analyzed = client.post(
+            "/api/v1/knowledge/business-profile/analyze",
+            headers=headers,
+            data={
+                "company_name": "Northstar Systems",
+                "business_details": (
+                    "We help regulated companies modernize document management and collaboration."
+                ),
+                "services": "SharePoint migration\nMicrosoft 365 consulting",
+            },
+            files={
+                "documents": (
+                    "capabilities.txt",
+                    b"Our services include employee intranets and governance workshops.",
+                    "text/plain",
+                )
+            },
+        )
+        assert analyzed.status_code == 200
+        profile = analyzed.json()
+        assert profile["analysis_method"] == "deterministic"
+        assert profile["services"] == [
+            "SharePoint migration",
+            "Microsoft 365 consulting",
+        ]
+        assert len(profile["sources"]) == 2
+        assert profile["warning"]
+
+        confirmation_payload = {
+            **{key: value for key, value in profile.items() if key != "warning"},
+            "workflow_mode": "leads_and_calling",
+            "confirmed": True,
+        }
+        confirmed = client.post(
+            "/api/v1/knowledge/business-profile/confirm",
+            headers=headers,
+            json=confirmation_payload,
+        )
+        repeated = client.post(
+            "/api/v1/knowledge/business-profile/confirm",
+            headers=headers,
+            json=confirmation_payload,
+        )
+        assert confirmed.status_code == 201
+        assert repeated.status_code == 201
+        assert repeated.json()["id"] == confirmed.json()["id"]
+        body = confirmed.json()
+        assert body["version"] == 2
+        assert body["is_active"] is True
+        assert body["is_callable"] is True
+        assert body["services"] == profile["services"]
+        assert body["profile_source_count"] == 2
+        assert all(not key.startswith("_") for key in body["facts"])
+        product = session.scalar(select(Product))
+        assert product is not None
+        assert product.name == "Northstar Systems"
+        model_run = session.scalar(
+            select(ModelRun).where(ModelRun.purpose == "business_profile_analysis")
+        )
+        assert model_run is not None
+        assert model_run.result_status == "fallback"
+        actions = set(session.scalars(select(AuditLog.action)).all())
+        assert {"business_profile_analyzed", "business_profile_confirmed"} <= actions
+
+
+def test_business_profile_rejects_unsupported_file_and_operator_confirmation(
+    tmp_path: Path,
+) -> None:
+    with _client(tmp_path / "business-profile-policy.db") as (client, settings, session):
+        headers = _headers(settings)
+        rejected = client.post(
+            "/api/v1/knowledge/business-profile/analyze",
+            headers=headers,
+            data={"company_name": "Northstar", "business_details": "Consulting services"},
+            files={"documents": ("payload.exe", b"not a document", "application/octet-stream")},
+        )
+        assert rejected.status_code == 422
+        assert "TXT" in rejected.json()["detail"]
+
+        membership = session.scalar(select(Membership).where(Membership.user_id == USER_ID))
+        assert membership is not None
+        membership.role = "operator"
+        session.commit()
+        denied = client.post(
+            "/api/v1/knowledge/business-profile/confirm",
+            headers=headers,
+            json={
+                **_draft_payload(),
+                "company_name": "Northstar",
+                "company_url": None,
+                "services": ["Consulting"],
+                "target_customers": ["Regulated companies"],
+                "sources": [],
+                "analysis_method": "manual",
+                "analysis_token": "invalid-analysis-token-value",
+                "workflow_mode": "calling_only",
+                "confirmed": True,
+            },
+        )
+        assert denied.status_code == 403
