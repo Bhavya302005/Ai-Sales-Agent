@@ -8,6 +8,7 @@ vi.mock("./actions", () => ({ confirmBusinessProfile: vi.fn() }));
 describe("BusinessSetup", () => {
   afterEach(() => {
     cleanup();
+    window.sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
@@ -99,6 +100,38 @@ describe("BusinessSetup", () => {
     expect(screen.getByLabelText("Company name")).toHaveValue("Northstar");
     expect(screen.getByLabelText("Business description")).toHaveValue(
       "Enterprise workflow consulting and implementation.",
+    );
+  });
+
+  it("restores entered evidence after the component remounts", async () => {
+    const first = render(<BusinessSetup productName="" />);
+    fireEvent.change(screen.getByLabelText("Company name"), {
+      target: { value: "Northstar" },
+    });
+    fireEvent.change(screen.getByLabelText("Company website"), {
+      target: { value: "https://northstar.example" },
+    });
+    fireEvent.change(screen.getByLabelText("Business description"), {
+      target: { value: "Enterprise workflow consulting and implementation." },
+    });
+    fireEvent.change(screen.getByLabelText("Products or services — one per line"), {
+      target: { value: "SharePoint migration" },
+    });
+    await waitFor(() =>
+      expect(window.sessionStorage.getItem("signalpath.business-profile-draft.v1")).toContain(
+        "Northstar",
+      ),
+    );
+    first.unmount();
+
+    render(<BusinessSetup productName="" />);
+    await waitFor(() => expect(screen.getByLabelText("Company name")).toHaveValue("Northstar"));
+    expect(screen.getByLabelText("Company website")).toHaveValue("https://northstar.example");
+    expect(screen.getByLabelText("Business description")).toHaveValue(
+      "Enterprise workflow consulting and implementation.",
+    );
+    expect(screen.getByLabelText("Products or services — one per line")).toHaveValue(
+      "SharePoint migration",
     );
   });
 });

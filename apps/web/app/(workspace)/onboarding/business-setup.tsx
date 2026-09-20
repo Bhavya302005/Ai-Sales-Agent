@@ -1,12 +1,13 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import type { BusinessProfileAnalysis, OfferingVersion } from "@/lib/api";
 
 import { confirmBusinessProfile } from "./actions";
 
 type Props = { productName: string; active?: OfferingVersion };
+const DRAFT_STORAGE_KEY = "signalpath.business-profile-draft.v1";
 const lines = (values: string[]) => values.join("\n");
 const factLines = (values: Record<string, string>) =>
   Object.entries(values).map(([key, value]) => `${key}: ${value}`).join("\n");
@@ -19,6 +20,40 @@ export function BusinessSetup({ productName, active }: Props) {
   const [companyUrl, setCompanyUrl] = useState(active?.company_url ?? "");
   const [businessDetails, setBusinessDetails] = useState(active?.description ?? "");
   const [services, setServices] = useState(active ? lines(active.services) : "");
+  const [draftReady, setDraftReady] = useState(false);
+
+  useEffect(() => {
+    let draft: Partial<{
+      companyName: string;
+      companyUrl: string;
+      businessDetails: string;
+      services: string;
+    }> = {};
+    try {
+      const stored = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+      if (stored) {
+        draft = JSON.parse(stored) as typeof draft;
+      }
+    } catch {
+      window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    }
+    const restoreDraft = window.setTimeout(() => {
+      if (typeof draft.companyName === "string") setCompanyName(draft.companyName);
+      if (typeof draft.companyUrl === "string") setCompanyUrl(draft.companyUrl);
+      if (typeof draft.businessDetails === "string") setBusinessDetails(draft.businessDetails);
+      if (typeof draft.services === "string") setServices(draft.services);
+      setDraftReady(true);
+    }, 0);
+    return () => window.clearTimeout(restoreDraft);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    window.sessionStorage.setItem(
+      DRAFT_STORAGE_KEY,
+      JSON.stringify({ companyName, companyUrl, businessDetails, services }),
+    );
+  }, [businessDetails, companyName, companyUrl, draftReady, services]);
 
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,7 +97,7 @@ export function BusinessSetup({ productName, active }: Props) {
           <label className="wide-field">Products or services — one per line<textarea name="services" rows={4} placeholder={"Microsoft 365 consulting\nSharePoint migration\nEmployee intranet implementation"} value={services} onChange={(event) => setServices(event.target.value)} /></label>
           <label className="wide-field upload-zone">Supporting documents (optional)<input name="documents" type="file" multiple accept=".txt,.md,.html,.htm,.pdf,.docx" /><small>TXT, Markdown, HTML, PDF, or DOCX · up to 5 files · 2 MB each.</small></label>
           {error ? <p className="form-error wide-field" role="alert">{error}</p> : null}
-          <div className="wide-field form-submit-row"><p>Website and document content is treated as evidence—not instructions.</p><button className="primary-button" disabled={loading} type="submit">{loading ? "Understanding your business…" : "Analyze my business"}</button></div>
+          <div className="wide-field form-submit-row"><p>Your text entries are saved in this browser tab while you review. Website and document content is treated as evidence—not instructions.</p><button className="primary-button" disabled={loading} type="submit">{loading ? "Understanding your business…" : "Analyze my business"}</button></div>
         </form>
       </section>
 
