@@ -157,61 +157,55 @@ def _exa_search(query: str, num: int = 8) -> str:
 
 
 def _build_queries(item: DiscoveryItem) -> list[str]:
-    """Generate 6–8 highly targeted queries for a given DiscoveryItem."""
+    """Generate up to 8 decision-maker-targeted queries for a DiscoveryItem.
+
+    Priority order:
+      1. Person-specific queries (if company field contains a person name)
+      2. Company-level directory lookups
+      3. Domain / RFP fallback
+    """
     from urllib.parse import urlsplit
 
-    title = re.sub(r"[^\w\s&-]", " ", item.title)[:50].strip()
-    company = re.sub(r"[^\w\s&-]", " ", item.company or "")[:40].strip()
+    raw_name = re.sub(r"[^\w\s&\-.] ", " ", item.company or "").strip()
+    title = re.sub(r"[^\w\s&\-]", " ", item.title)[:50].strip()
     domain = urlsplit(item.canonical_url).netloc.replace("www.", "")
+
+    name_words = raw_name.split()
+    _co_words = ["ltd", "llc", "inc", "pty", "corp", "solutions", "agency",
+                 "group", "partners", "consulting", "technologies", "systems", "people"]
+    is_person = (
+        2 <= len(name_words) <= 4
+        and all(w[0].isupper() for w in name_words if w)
+        and not any(kw in raw_name.lower() for kw in _co_words)
+    )
 
     queries: list[str] = []
 
-    # 1. Company + "phone OR contact"
-    if company:
-        queries.append(
-            f'"{company}" phone OR mobile OR WhatsApp OR "reach us" OR "contact us"'
-        )
-        # 2. Company on directories
-        queries.append(
-            f'"{company}" site:zoominfo.com OR site:rocketreach.co OR '
-            f'site:clutch.co OR site:manta.com phone'
-        )
-
-    # 3. Title + contact (good for RFPs where the title has the company)
-    queries.append(
-        f'"{title}" contact phone OR email OR "procurement officer"'
-    )
-
-    # 4. Source domain — the site:X trick for government/company portals
-    if domain and "freelancer" not in domain and "linkedin" not in domain:
-        queries.append(
-            f'site:{domain} phone OR contact OR email OR "reach us"'
-        )
-
-    # 5. Location-aware — whitepages / regional directory
-    if item.location:
-        loc = re.sub(r"[^\w\s,]", " ", item.location)[:40].strip()
-        queries.append(f'"{company or title}" "{loc}" phone OR mobile')
-
-    # 6. WhatsApp / personal contact
-    if company:
-        queries.append(
-            f'"{company}" WhatsApp OR wa.me OR "direct message" OR LinkedIn'
-        )
-
-    # 7. LinkedIn company page for phone
-    if company:
-        queries.append(
-            f'site:linkedin.com/company "{company}" phone OR contact'
-        )
-
-    # 8. Broad catch-all for the title across all indexed pages
-    queries.append(
-        f'"{title}" phone OR email procurement OR contact OR "get in touch"'
-    )
+    if is_person:
+        name = raw_name
+        first = name_words[0].lower()
+        last = name_words[-1].lower() if len(name_words) > 1 else ""
+        queries.append(f'"{name}" phone OR mobile OR WhatsApp OR "direct line"')
+        queries.append(f'"{name}" site:zoominfo.com OR site:rocketreach.co phone email')
+        queries.append(f'"{first}.{last}" OR "{name}" email contact phone')
+        queries.append(f'site:linkedin.com/in "{name}" phone OR email OR contact')
+        queries.append(f'"{name}" site:whitepages.com OR site:truepeoplesearch.com phone')
+        queries.append(f'"{name}" employer company contact phone email')
+    else:
+        company = raw_name
+        if company:
+            queries.append(f'"{company}" CEO OR Director OR "Head of" phone OR mobile OR email')
+            queries.append(f'"{company}" site:zoominfo.com OR site:rocketreach.co OR site:clutch.co phone')
+            queries.append(f'"{company}" contact phone email "reach us"')
+            queries.append(f'site:linkedin.com/company "{company}" phone OR contact OR email')
+        if domain and "freelancer" not in domain and "linkedin" not in domain:
+            queries.append(f'site:{domain} contact OR phone OR "get in touch"')
+        if item.location:
+            loc = re.sub(r"[^\w\s,]", " ", item.location)[:40].strip()
+            queries.append(f'"{company or title}" "{loc}" phone OR mobile')
+        queries.append(f'"{title}" contact phone email procurement')
 
     return queries[:8]
-
 
 def enrich_contact(item: DiscoveryItem) -> dict:
     """

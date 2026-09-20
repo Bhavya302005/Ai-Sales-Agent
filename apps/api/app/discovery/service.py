@@ -8,6 +8,17 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+# Load .env from project root so EXA_API_KEY is always available
+_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
+if _ENV_FILE.exists():
+    for _line in _ENV_FILE.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
+
+_EXA_API_KEY: str = os.environ.get("EXA_API_KEY", "")
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.conversation.script import QUALIFICATION_QUESTIONS
@@ -273,7 +284,7 @@ def discover_with_exa(
         if include_domains:
             args["includeDomains"] = include_domains
 
-        exa_key = os.environ.get("EXA_API_KEY", "")
+        exa_key = _EXA_API_KEY
         if exa_key:
             cmd = [
                 executable, "call",
