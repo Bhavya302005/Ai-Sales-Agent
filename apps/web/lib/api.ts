@@ -20,11 +20,14 @@ export type LeadSummary = {
   product_version_id: string;
   lifecycle: string;
   company_name: string | null;
+  contact_name?: string | null;
   normalized_need: string;
   source_url: string;
   published_at: string | null;
   score: number | null;
   score_confidence: number | null;
+  best_phone?: string | null;
+  best_email?: string | null;
 };
 
 export type LeadDetail = LeadSummary & {
@@ -484,8 +487,8 @@ export async function getViewer(): Promise<{ me: Me; workspace: Workspace }> {
   return { me, workspace };
 }
 
-export async function getLeads(): Promise<LeadSummary[]> {
-  return apiFetch<LeadSummary[]>("/api/v1/leads");
+export async function getLeads(query = ""): Promise<LeadSummary[]> {
+  return apiFetch<LeadSummary[]>(`/api/v1/leads${query ? `?${query}` : ""}`);
 }
 
 export async function getLead(id: string): Promise<LeadDetail> {

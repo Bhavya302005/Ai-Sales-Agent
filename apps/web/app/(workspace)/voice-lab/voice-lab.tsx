@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CustomSelect } from "@/app/ui/custom-select";
+
 type Language = "auto" | "en-IN" | "hi-IN";
 type Transport = "browser" | "sarvam";
 type VoiceEvent = {
@@ -353,29 +355,36 @@ export function VoiceLab() {
           </p>
         </div>
         <label className="voice-language">
-          Voice engine
-          <select
+          <span>Voice engine</span>
+          <CustomSelect
             value={transport}
-            onChange={(event) => {
+            onChange={(nextTransport) => {
               stopAll();
-              const nextTransport = event.target.value as Transport;
-              setTransport(nextTransport);
+              setTransport(nextTransport as Transport);
               if (nextTransport === "browser" && language === "auto") setLanguage("en-IN");
               setStatus("Ready");
             }}
+            options={[
+              { value: "browser", label: "Browser fallback — no Sarvam credits" },
+              { value: "sarvam", label: "Sarvam realtime — credits required" },
+            ]}
             disabled={isListening}
-          >
-            <option value="browser">Browser fallback — no Sarvam credits</option>
-            <option value="sarvam">Sarvam realtime — credits required</option>
-          </select>
+            ariaLabel="Voice engine"
+          />
         </label>
         <label className="voice-language">
-          Input language
-          <select value={language} onChange={(event) => setLanguage(event.target.value as Language)} disabled={isListening}>
-            {transport === "sarvam" ? <option value="auto">Auto detect</option> : null}
-            <option value="en-IN">English (India)</option>
-            <option value="hi-IN">Hindi</option>
-          </select>
+          <span>Input language</span>
+          <CustomSelect
+            value={language}
+            onChange={(nextLang) => setLanguage(nextLang as Language)}
+            options={[
+              ...(transport === "sarvam" ? [{ value: "auto", label: "Auto detect" }] : []),
+              { value: "en-IN", label: "English (India)" },
+              { value: "hi-IN", label: "Hindi" },
+            ]}
+            disabled={isListening}
+            ariaLabel="Input language"
+          />
         </label>
         <div className="voice-actions">
           <button

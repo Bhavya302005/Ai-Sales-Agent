@@ -2,9 +2,11 @@ import Link from "next/link";
 
 import { getCallDetail } from "@/lib/api";
 
+import { AudioPlayer } from "./audio-player";
 import { BrowserCallSession } from "./browser-call-session";
 import { callFailureMessage } from "./call-status";
 import { refreshProviderCall, syncHandoffToCrm } from "./actions";
+import { CallStatusPoller } from "@/app/(workspace)/campaigns/call-status-poller";
 
 export default async function CallPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,6 +15,8 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
   const providerSummary = typeof call.usage.provider_summary === "string" ? call.usage.provider_summary : null;
   const providerSentiment = typeof call.usage.provider_sentiment === "string" ? call.usage.provider_sentiment : null;
   const recordingAvailable = call.usage.provider_recording_available === true;
+  const durationSeconds = typeof call.usage.duration_seconds === "number" ? call.usage.duration_seconds : 0;
+  const isCallActive = ["connecting", "active", "ending"].includes(call.state);
   return (
     <>
       <Link className="back-link compact" href="/campaigns">← Campaigns</Link>
@@ -23,6 +27,7 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
         </div>
         <span className="mode-badge">{call.state}</span>
       </header>
+      <CallStatusPoller active={isCallActive} />
       {call.state === "eligible" && call.transport === "browser" ? (
         <BrowserCallSession callId={call.id} maxDuration={call.max_duration_seconds} />
       ) : ["twilio", "omnidim"].includes(call.transport) && ["eligible", "connecting", "active", "ending"].includes(call.state) ? (
@@ -52,7 +57,21 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
             </div>
           </section>
           <div className="call-outcome-stack">
-            {(providerSummary || recordingAvailable) ? <section className="detail-panel provider-insights"><p className="kicker">Provider insights</p><h2>Call summary</h2>{providerSummary ? <p className="panel-copy">{providerSummary}</p> : null}{providerSentiment ? <p className="fine-print">Sentiment: {providerSentiment}</p> : null}{recordingAvailable ? <audio controls preload="none" src={`/api/calls/${call.id}/recording`}>Recording playback is not supported by this browser.</audio> : null}</section> : null}
+            {(providerSummary || recordingAvailable) ? (
+              <section className="detail-panel provider-insights">
+                <p className="kicker">Provider insights</p>
+                <h2>Call summary</h2>
+                {providerSummary ? <p className="panel-copy">{providerSummary}</p> : null}
+                {providerSentiment ? <p className="fine-print">Sentiment: {providerSentiment}</p> : null}
+                {recordingAvailable ? (
+                  <AudioPlayer
+                    callId={call.id}
+                    initialDuration={durationSeconds}
+                    summaryText={providerSummary ?? undefined}
+                  />
+                ) : null}
+              </section>
+            ) : null}
             <section className="detail-panel">
               <p className="kicker">Verified result</p><h2>Qualification</h2>
               {call.qualification ? (

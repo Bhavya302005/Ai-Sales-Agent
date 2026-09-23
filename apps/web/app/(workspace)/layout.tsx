@@ -8,7 +8,6 @@ import { PrimaryNav, type NavEntry } from "./primary-nav";
 
 const primaryNavigation: readonly [label: string, href: string][] = [
   ["Business profile", "/onboarding"],
-  ["Discover", "/sources"],
   ["Leads", "/leads"],
   ["Campaigns", "/campaigns"],
   ["Analytics", "/analytics"],
@@ -60,8 +59,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
         <div className="workspace-journey" aria-label="Product journey">
           {[
             ["Business", "/onboarding"],
-            ["Discovery", "/sources"],
-            ["Review", "/leads"],
+            ["Leads", "/leads"],
             ["Campaign", "/campaigns"],
             ["Call", "/campaigns"],
             ["Insights", "/analytics"],

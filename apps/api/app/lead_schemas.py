@@ -12,11 +12,14 @@ class LeadSummaryResponse(BaseModel):
     product_version_id: UUID
     lifecycle: str
     company_name: str | None
+    contact_name: str | None = None
     normalized_need: str
     source_url: str
     published_at: datetime | None
     score: int | None
     score_confidence: float | None = Field(default=None, ge=0, le=1)
+    best_phone: str | None = None
+    best_email: str | None = None
 
 
 class AssertionResponse(BaseModel):

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { getCallingProvider, getCampaignRuns, getCampaigns, getLeads, type CampaignRun } from "@/lib/api";
 import { diagnosticsEnabled } from "@/lib/runtime";
+import { CustomSelect, type CustomSelectOption } from "@/app/ui/custom-select";
 
 import {
   approveLead,
@@ -14,6 +15,19 @@ import {
   processDueCampaigns,
   updateCampaignRun,
 } from "./actions";
+import { CallStatusPoller } from "./call-status-poller";
+
+const WORKFLOW_OPTIONS: CustomSelectOption[] = [
+  { value: "leads_and_calling", label: "Discover leads + call" },
+  { value: "calling_only", label: "Call an uploaded list" },
+];
+
+const SCHEDULE_OPTIONS: CustomSelectOption[] = [
+  { value: "once", label: "Run once" },
+  { value: "daily", label: "Run daily" },
+  { value: "weekly", label: "Run weekly" },
+  { value: "monthly", label: "Run monthly" },
+];
 
 export default async function CampaignsPage() {
   const [campaigns, leads, provider] = await Promise.all([getCampaigns(), getLeads(), getCallingProvider()]);
@@ -22,19 +36,40 @@ export default async function CampaignsPage() {
   );
   const runsByCampaign: Record<string, CampaignRun[]> = Object.fromEntries(campaignRunEntries);
   const showDiagnostics = diagnosticsEnabled();
+  const hasActiveCalls = campaigns.some((campaign) =>
+    campaign.leads.some((item) => ["connecting", "active", "ending"].includes(item.latest_call_state ?? ""))
+  );
   return (
     <>
       <header className="page-header">
         <div><div className="eyebrow">Call control</div><h1 className="page-title">Campaigns and calling</h1></div>
         <span className={`knowledge-state ${provider.pstn_configured ? "callable" : "blocked"}`}>{provider.pstn_configured ? `${provider.label} ready` : "Calling setup required"}</span>
       </header>
+      <CallStatusPoller active={hasActiveCalls} />
       <section className="campaign-create-panel">
         <div><p className="kicker">Explicit workflow</p><h2>Create a safe campaign</h2></div>
         <form action={createCampaign} className="campaign-create-form">
           <label><span>Campaign name</span><input name="name" placeholder="e.g. SharePoint opportunities" required /></label>
-          <label><span>Workflow</span><select defaultValue="leads_and_calling" name="mode"><option value="leads_and_calling">Discover leads + call</option><option value="calling_only">Call an uploaded list</option></select></label>
+          <label>
+            <span>Workflow</span>
+            <CustomSelect
+              name="mode"
+              defaultValue="leads_and_calling"
+              options={WORKFLOW_OPTIONS}
+              ariaLabel="Select campaign workflow"
+            />
+          </label>
           <label><span>Time zone</span><input defaultValue="Asia/Kolkata" name="timezone" required /></label>
-          <label><span>Schedule</span><select defaultValue="once" name="recurrence"><option value="once">Run once</option><option value="daily">Run daily</option><option value="weekly">Run weekly</option><option value="monthly">Run monthly</option></select></label>
+          <label>
+            <span>Schedule</span>
+            <CustomSelect
+              name="recurrence"
+              defaultValue="once"
+              options={SCHEDULE_OPTIONS}
+              ariaLabel="Select campaign schedule"
+            />
+          </label>
+          <button className="primary-button" type="submit">Create campaign</button>
           <details className="campaign-advanced-settings">
             <summary>Retry and budget controls</summary>
             <div>
@@ -43,7 +78,6 @@ export default async function CampaignsPage() {
               <label><span>Daily budget (₹)</span><input defaultValue="500" min="0" name="daily_budget_inr" type="number" /></label>
             </div>
           </details>
-          <button className="primary-button" type="submit">Create campaign</button>
         </form>
       </section>
       <section className="campaign-list">
@@ -75,30 +109,38 @@ export default async function CampaignsPage() {
               <form action={importLeadFile} className="lead-upload-form">
                 <input name="campaign_id" type="hidden" value={campaign.id} />
                 <label>
-                  Upload consenting leads (CSV/XLSX, max 100 rows)
+                  <span>Upload consenting leads (CSV/XLSX, max 100 rows)</span>
                   <input accept=".csv,.xlsx" name="file" required type="file" />
                 </label>
                 <button className="secondary-button" type="submit">Validate and import</button>
               </form>
-            ) : (
-              <form action={addLeadToCampaign} className="lead-upload-form">
-                <input name="campaign_id" type="hidden" value={campaign.id} />
-                <label>
-                  Add a reviewed direct opportunity
-                  <select name="lead_id" required>
-                    <option value="">Choose an opportunity</option>
-                    {leads
-                      .filter((lead) => !campaign.leads.some((item) => item.lead_id === lead.id))
-                      .map((lead) => (
-                        <option key={lead.id} value={lead.id}>
-                          {lead.company_name ?? "Unknown company"} — {lead.normalized_need}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <button className="secondary-button" type="submit">Add for review</button>
-              </form>
-            )}
+            ) : (() => {
+              const availableLeads = leads
+                .filter((lead) => !campaign.leads.some((item) => item.lead_id === lead.id))
+                .map((lead) => ({
+                  value: lead.id,
+                  label: `${lead.company_name ?? "Unknown company"} — ${lead.normalized_need}`,
+                }));
+              return (
+                <form action={addLeadToCampaign} className="lead-upload-form">
+                  <input name="campaign_id" type="hidden" value={campaign.id} />
+                  <label>
+                    <span>Add a reviewed direct opportunity</span>
+                    <CustomSelect
+                      name="lead_id"
+                      defaultValue=""
+                      placeholder={availableLeads.length > 0 ? "Choose an opportunity" : "No available opportunities"}
+                      options={availableLeads}
+                      required
+                      ariaLabel="Choose an opportunity"
+                    />
+                  </label>
+                  <button className="secondary-button" type="submit" disabled={availableLeads.length === 0}>
+                    Add for review
+                  </button>
+                </form>
+              );
+            })()}
             {campaign.leads.map((item) => {
               const lead = leads.find((candidate) => candidate.id === item.lead_id);
               return <div className="campaign-lead" key={item.id}>
@@ -122,7 +164,9 @@ export default async function CampaignsPage() {
                           <button className="text-button" type="submit">Prepare voice diagnostic</button>
                         </form>
                       ) : null}
-                      {["twilio", "omnidim"].includes(item.latest_call_transport ?? "") && item.latest_call_state === "eligible" && item.latest_call_id ? (
+                      {item.latest_call_id && item.latest_call_state === "completed" ? (
+                        <Link className="primary-button" href={`/calls/${item.latest_call_id}`}>View call summary & evidence →</Link>
+                      ) : ["twilio", "omnidim"].includes(item.latest_call_transport ?? "") && item.latest_call_state === "eligible" && item.latest_call_id ? (
                         <form action={dispatchPstnCall}>
                           <input name="call_id" type="hidden" value={item.latest_call_id} />
                           <button className="primary-button" type="submit">Start call</button>

@@ -99,6 +99,19 @@ def get_call_detail(
     )
     if call is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Call not found")
+    if call.transport == "omnidim" and (
+        call.state in {"connecting", "active", "ending"}
+        or not session.scalar(
+            select(TranscriptSegment.id).where(
+                TranscriptSegment.organization_id == auth.organization_id,
+                TranscriptSegment.call_id == call.id,
+            )
+        )
+    ):
+        from app.calling.api import _sync_single_omnidim_call
+
+        _sync_single_omnidim_call(session, call, settings, auth.organization_id)
+        session.refresh(call)
     segments = session.scalars(
         select(TranscriptSegment)
         .where(

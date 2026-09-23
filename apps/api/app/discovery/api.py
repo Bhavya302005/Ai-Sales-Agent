@@ -1,6 +1,7 @@
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -147,38 +148,54 @@ def _ingest_and_extract(
     for item in items:
         ingestion = ingest_source(session, auth.organization_id, item.fetched_source())
         documents.append(ingestion.document)
-        if not ingestion.created:
-            continue
-        created += 1
-        queued = enqueue_once(
-            session,
-            organization_id=auth.organization_id,
-            actor_id=auth.user_id,
-            route=f"discovery:{provider}:{ingestion.document.id}",
-            idempotency_key=f"discover-{ingestion.document.id}",
-            event_type="lead.extraction_requested.v1",
-            aggregate_type="source",
-            aggregate_id=ingestion.document.id,
-            payload_ref=f"source:{ingestion.document.id}",
-        )
-        ingestion.document.extraction_status = "queued"
-        session.add(
-            AuditLog(
+        if ingestion.created:
+            created += 1
+        if ingestion.created or ingestion.document.extraction_status != "completed":
+            queued = enqueue_once(
+                session,
                 organization_id=auth.organization_id,
                 actor_id=auth.user_id,
-                action="discovery_result_imported",
-                target_type="source_document",
-                target_id=ingestion.document.id,
-                reason=f"provider={provider}; job={queued.event.event_id}",
-                request_id=request.state.request_id,
+                route=f"discovery:{provider}:{ingestion.document.id}",
+                idempotency_key=f"discover-{ingestion.document.id}",
+                event_type="lead.extraction_requested.v1",
+                aggregate_type="source",
+                aggregate_id=ingestion.document.id,
+                payload_ref=f"source:{ingestion.document.id}",
             )
-        )
-        session.flush()
-        process_event(session, queued.event.event_id)
-        # ── Async phone/email enrichment (non-blocking) ──────────────────
-        # Runs in a daemon thread so the HTTP response is never delayed.
-        # On completion it opens its own DB session to write back.
-        _spawn_phone_enrichment(item, ingestion.document.id)
+            ingestion.document.extraction_status = "queued"
+            session.add(
+                AuditLog(
+                    organization_id=auth.organization_id,
+                    actor_id=auth.user_id,
+                    action="discovery_result_imported",
+                    target_type="source_document",
+                    target_id=ingestion.document.id,
+                    reason=f"provider={provider}; job={queued.event.event_id}",
+                    request_id=request.state.request_id,
+                )
+            )
+            session.flush()
+            process_event(session, queued.event.event_id)
+
+    # ── Synchronous parallel phone & contact enrichment (5-10s budget) ────────
+    pairs = [
+        (item, dict(doc.provider_metadata or {}))
+        for item, doc in zip(items, documents)
+    ]
+
+    def _enrich_one(item_meta: tuple[DiscoveryItem, dict[str, Any]]) -> dict[str, Any]:
+        itm, meta = item_meta
+        if not meta.get("best_phone"):
+            contact_data = enrich_contact(itm)
+            meta.update(contact_data)
+        return meta
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        enriched_metas = list(pool.map(_enrich_one, pairs))
+
+    for doc, meta in zip(documents, enriched_metas):
+        doc.provider_metadata = meta
+
     session.commit()
     for document in documents:
         session.refresh(document)

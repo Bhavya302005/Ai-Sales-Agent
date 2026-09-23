@@ -1,6 +1,7 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import type { BusinessProfileAnalysis, OfferingVersion } from "@/lib/api";
 
@@ -20,7 +21,40 @@ export function BusinessSetup({ productName, active }: Props) {
   const [companyUrl, setCompanyUrl] = useState(active?.company_url ?? "");
   const [businessDetails, setBusinessDetails] = useState(active?.description ?? "");
   const [services, setServices] = useState(active ? lines(active.services) : "");
+  const [confirming, setConfirming] = useState(false);
+  const [confirmStage, setConfirmStage] = useState("Locking approved profile & ICP rules…");
   const [draftReady, setDraftReady] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; size: string }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []).map((file) => ({
+      name: file.name,
+      size: file.size >= 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+        : `${Math.round(file.size / 1024)} KB`,
+    }));
+    setSelectedFiles(files);
+  }
+
+  useEffect(() => {
+    if (!confirming) return;
+    const stages = [
+      "Locking approved business profile & ICP rules…",
+      "Triggering Exa Lead Finder for active buyer requirements…",
+      "Scanning LinkedIn, RFP boards, and tender portals with Exa…",
+      "Mining buyer-intent opportunities & decision-maker signals…",
+      "Ingesting opportunities and loading your workspace…",
+    ];
+    let idx = 0;
+    const interval = window.setInterval(() => {
+      idx++;
+      if (idx < stages.length) {
+        setConfirmStage(stages[idx]);
+      }
+    }, 2800);
+    return () => window.clearInterval(interval);
+  }, [confirming]);
 
   useEffect(() => {
     let draft: Partial<{
@@ -81,23 +115,126 @@ export function BusinessSetup({ productName, active }: Props) {
 
   return (
     <div className="business-setup">
+      {active?.is_callable ? (
+        <section className="detail-panel active-profile-card">
+          <div className="section-heading">
+            <div>
+              <p className="kicker">Verified Profile · Version {active.version} Active</p>
+              <h2>{companyName || productName} is configured and ready</h2>
+            </div>
+            <span className="knowledge-state callable">Active profile locked</span>
+          </div>
+          <p className="panel-copy">
+            Your business profile is already active and powering your lead matching, fit scoring, and AI calls. <strong>You do not have to click &ldquo;Analyze my business&rdquo; again</strong> unless you want to update your company details or add new documents to create a new profile version.
+          </p>
+          <div className="active-profile-quick-actions">
+            <Link className="primary-button" href="/leads?provider=live">
+              View matching leads →
+            </Link>
+            <Link className="secondary-button" href="/campaigns">
+              Manage campaigns
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <ol className="setup-steps" aria-label="Business setup progress">
-        <li className="current"><span>1</span>Tell us about your business</li>
+        <li className="current"><span>1</span>{active?.is_callable ? "Update business evidence" : "Tell us about your business"}</li>
         <li className={analysis ? "current" : ""}><span>2</span>Review AI understanding</li>
         <li><span>3</span>Choose your workflow</li>
       </ol>
 
       <section className="detail-panel setup-intake">
-        <div className="section-heading"><div><p className="kicker">Step 1 · Business evidence</p><h2>What does your company sell?</h2></div></div>
-        <p className="panel-copy">Add what you already have. We propose a profile; nothing becomes callable until you review and confirm it.</p>
+        <div className="section-heading">
+          <div>
+            <p className="kicker">
+              {active?.is_callable
+                ? `Update business profile · Version ${active.version} currently active`
+                : "Step 1 · Business evidence"}
+            </p>
+            <h2>What does your company sell?</h2>
+          </div>
+        </div>
+        <p className="panel-copy">
+          {active?.is_callable
+            ? "Your current active profile remains locked for all calls. Submitting new evidence below allows you to review and approve an updated profile version."
+            : "Add what you already have. We propose a profile; nothing becomes callable until you review and confirm it."}
+        </p>
         <form onSubmit={analyze} className="knowledge-form">
           <label>Company name<input name="company_name" required minLength={2} value={companyName} onChange={(event) => setCompanyName(event.target.value)} /></label>
           <label>Company website<input name="company_url" type="url" placeholder="https://yourcompany.com" value={companyUrl} onChange={(event) => setCompanyUrl(event.target.value)} /></label>
           <label className="wide-field">Business description<textarea name="business_details" rows={4} placeholder="What you do, the outcomes you deliver, and what makes you different…" value={businessDetails} onChange={(event) => setBusinessDetails(event.target.value)} /></label>
           <label className="wide-field">Products or services — one per line<textarea name="services" rows={4} placeholder={"Microsoft 365 consulting\nSharePoint migration\nEmployee intranet implementation"} value={services} onChange={(event) => setServices(event.target.value)} /></label>
-          <label className="wide-field upload-zone">Supporting documents (optional)<input name="documents" type="file" multiple accept=".txt,.md,.html,.htm,.pdf,.docx" /><small>TXT, Markdown, HTML, PDF, or DOCX · up to 5 files · 2 MB each.</small></label>
+
+          <div className="wide-field upload-zone">
+            <div className="upload-zone-header">
+              <span className="upload-zone-title">Supporting documents (optional)</span>
+              {active?.profile_source_count ? (
+                <span className="upload-zone-active-sources">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {active.profile_source_count} evidence source(s) active in your profile
+                </span>
+              ) : null}
+            </div>
+
+            <label className="upload-zone-droparea">
+              <input
+                ref={fileInputRef}
+                name="documents"
+                type="file"
+                multiple
+                accept=".txt,.md,.html,.htm,.pdf,.docx"
+                onChange={handleFileChange}
+                className="upload-hidden-input"
+                aria-label="Upload supporting documents"
+              />
+              <div className="upload-droparea-content">
+                <div className="upload-icon-circle">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <div className="upload-droparea-text">
+                  <strong>Choose files or drag &amp; drop</strong>
+                  <span>TXT, Markdown, HTML, PDF, or DOCX · up to 5 files · 2 MB each</span>
+                </div>
+              </div>
+            </label>
+
+            {selectedFiles.length > 0 ? (
+              <div className="upload-selected-files">
+                <span className="upload-files-heading">Ready for analysis ({selectedFiles.length}):</span>
+                <div className="upload-files-list">
+                  {selectedFiles.map((file, idx) => (
+                    <div className="upload-file-chip" key={idx}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      <span className="upload-file-name">{file.name}</span>
+                      <span className="upload-file-size">({file.size})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <p className="upload-note">
+              Uploaded documents are parsed and converted into AI evidence facts in your active profile. Browsers do not re-populate raw file inputs after page reload.
+            </p>
+          </div>
+
           {error ? <p className="form-error wide-field" role="alert">{error}</p> : null}
-          <div className="wide-field form-submit-row"><p>Your text entries are saved in this browser tab while you review. Website and document content is treated as evidence—not instructions.</p><button className="primary-button" disabled={loading} type="submit">{loading ? "Understanding your business…" : "Analyze my business"}</button></div>
+          <div className="wide-field form-submit-row">
+            <p>Your text entries are saved in this browser tab while you review. Website and document content is treated as evidence—not instructions.</p>
+            <button className="primary-button" disabled={loading} type="submit">
+              {loading ? "Understanding your business…" : "Analyze my business"}
+            </button>
+          </div>
         </form>
       </section>
 
@@ -105,7 +242,14 @@ export function BusinessSetup({ productName, active }: Props) {
         <section className="detail-panel setup-review">
           <div className="section-heading"><div><p className="kicker">Step 2 · Review required</p><h2>Here is what we understood</h2></div><span className="verified-pill">{analysis.analysis_method === "gemini" ? "AI generated" : "Conservative fallback"}</span></div>
           {analysis.warning ? <p className="setup-warning">{analysis.warning}</p> : null}
-          <form action={confirmBusinessProfile} className="knowledge-form">
+          <form
+            action={confirmBusinessProfile}
+            onSubmit={() => {
+              setConfirming(true);
+              setConfirmStage("Locking approved profile & ICP rules…");
+            }}
+            className="knowledge-form"
+          >
             <input name="analysis_token" type="hidden" value={analysis.analysis_token} />
             <label>Company name<input name="company_name" required defaultValue={analysis.company_name} /></label>
             <label className="wide-field">Offering summary<textarea name="description" required minLength={20} rows={4} defaultValue={analysis.description} /></label>
@@ -131,9 +275,49 @@ export function BusinessSetup({ productName, active }: Props) {
               <label><input name="workflow_mode" type="radio" value="calling_only" /><span><strong>Call my own leads</strong><small>Upload your consenting lead list and create a calling campaign.</small></span></label>
             </fieldset>
             <label className="wide-field confirmation-check"><input name="confirmed" type="checkbox" required />I reviewed this profile and approve it for lead matching and AI call preparation.</label>
-            <div className="wide-field form-submit-row"><p>This creates an approved, versioned profile. You can create a new version later.</p><button className="primary-button" type="submit">Confirm profile and continue</button></div>
+            <div className="wide-field form-submit-row">
+              <p>This creates an approved, versioned profile. You can create a new version later.</p>
+              <button className="primary-button" disabled={confirming} type="submit">
+                {confirming ? "Searching opportunities with Exa…" : "Confirm profile and continue"}
+              </button>
+            </div>
           </form>
         </section>
+      ) : null}
+
+      {confirming ? (
+        <div className="discovery-loading-overlay" role="status" aria-live="polite">
+          <div className="discovery-loading-card">
+            <div className="discovery-radar-wrap">
+              <div className="discovery-radar-wave wave-1" />
+              <div className="discovery-radar-wave wave-2" />
+              <div className="discovery-radar-wave wave-3" />
+              <div className="discovery-radar-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+              </div>
+            </div>
+            <span className="discovery-eyebrow">AI Opportunity Discovery</span>
+            <h3 className="discovery-title">Exa Lead Finder Active</h3>
+            <p className="discovery-stage-text">{confirmStage}</p>
+            <div className="discovery-progress-bar">
+              <div className="discovery-progress-indicator" />
+            </div>
+            <div className="discovery-badges">
+              <span className="source-pill active">
+                <span className="pill-dot" />
+                Exa Neural Search
+              </span>
+              <span className="source-pill">LinkedIn Intent</span>
+              <span className="source-pill">Public RFPs</span>
+              <span className="source-pill">Contact Enrichment</span>
+            </div>
+            <p className="discovery-subtext">
+              Exa is searching live market sources for buyer intent matching your verified ICP. Your workspace will open automatically as soon as leads are loaded.
+            </p>
+          </div>
+        </div>
       ) : null}
     </div>
   );

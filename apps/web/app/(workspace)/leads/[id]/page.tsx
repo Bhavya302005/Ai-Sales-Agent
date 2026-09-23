@@ -24,7 +24,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </Link>
       <header className="detail-header">
         <div>
-          <div className="eyebrow">{lead.company_name ?? "Company unknown"}</div>
+          <div className="eyebrow">
+            {lead.contact_name ? `${lead.contact_name} · ${lead.company_name ?? "Company unknown"}` : (lead.company_name ?? "Company unknown")}
+          </div>
           <h1 className="page-title">{lead.normalized_need}</h1>
         </div>
         <div className="score-orb large">
@@ -39,11 +41,43 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <p className="kicker">Original evidence</p>
             <h2>What the source actually says</h2>
           </div>
-          <span className="verified-pill">{isSample ? "Sample data" : "Source verified"}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span className="verified-pill">{isSample ? "Sample data" : "Source verified"}</span>
+            {!isSample && lead.source.url ? (
+              <a
+                href={lead.source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="secondary-button"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px" }}
+              >
+                <span>Open original post</span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            ) : null}
+          </div>
         </div>
         <blockquote>“{lead.source.evidence_excerpt}”</blockquote>
         <dl className="source-facts">
-          <div><dt>Origin</dt><dd>{isSample ? "Sample opportunity · no public URL" : lead.source.url}</dd></div>
+          <div>
+            <dt>Origin URL</dt>
+            <dd>
+              {isSample ? (
+                "Sample opportunity · no public URL"
+              ) : (
+                <a
+                  href={lead.source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="primary-link"
+                  style={{ wordBreak: "break-all", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  <span>{lead.source.url}</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              )}
+            </dd>
+          </div>
           <div><dt>Published</dt><dd>{date(lead.source.published_at)}</dd></div>
           <div><dt>Observed</dt><dd>{date(lead.source.observed_at)}</dd></div>
           <div><dt>Rights</dt><dd>{isSample ? "Sample data for product walkthrough" : lead.source.rights_note}</dd></div>
@@ -51,6 +85,73 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </section>
 
       <div className="detail-grid">
+        <div className="detail-col">
+          <section className="detail-panel contact-panel">
+            <p className="kicker">Direct contact</p>
+            <h2>Verified phone & email</h2>
+            <div className="contact-badges" style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "16px" }}>
+              {lead.best_phone ? (
+                <a
+                  href={`tel:${lead.best_phone}`}
+                  className="contact-badge phone-badge"
+                  style={{ padding: "8px 16px", fontSize: "13.5px", fontWeight: 500 }}
+                  title="Click to dial"
+                >
+                  <span className="badge-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                  </span>
+                  <span>{lead.best_phone}</span>
+                  <span className="badge-action">Call now</span>
+                </a>
+              ) : (
+                <span className="contact-badge none-badge" style={{ padding: "8px 16px", fontSize: "13px" }}>
+                  <span className="badge-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                  </span>
+                  <span>Phone enriched on demand</span>
+                </span>
+              )}
+              {lead.best_email ? (
+                <a
+                  href={`mailto:${lead.best_email}`}
+                  className="contact-badge email-badge"
+                  style={{ padding: "8px 16px", fontSize: "13.5px", fontWeight: 500 }}
+                  title="Click to compose email"
+                >
+                  <span className="badge-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                  </span>
+                  <span>{lead.best_email}</span>
+                  <span className="badge-action" style={{ background: "#0288d1" }}>Email</span>
+                </a>
+              ) : null}
+            </div>
+            <p className="fine-print" style={{ marginTop: "16px" }}>
+              Verified via deep Exa intelligence & source crawl. Call-ready for human or AI outreach.
+            </p>
+          </section>
+
+          <section className="detail-panel unknown-panel">
+            <p className="kicker">Explicit uncertainty</p>
+            <h2>Still unknown</h2>
+            <ul className="unknown-list">
+              {lead.unknown_fields.length > 0 ? (
+                lead.unknown_fields.map((field) => <li key={field}>{label(field)}</li>)
+              ) : (
+                <li>All primary fields verified</li>
+              )}
+            </ul>
+            <p className="panel-copy">Unknown values do not become positive scoring signals or outreach permission.</p>
+          </section>
+        </div>
+
         <section className="detail-panel">
           <p className="kicker">Why this lead</p>
           <h2>Transparent score</h2>
@@ -69,15 +170,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <p className="fine-print">{lead.score_detail.rule_version} · confidence {Math.round(lead.score_detail.confidence * 100)}%</p>
             </>
           ) : <p className="panel-copy">Scoring has not run.</p>}
-        </section>
-
-        <section className="detail-panel unknown-panel">
-          <p className="kicker">Explicit uncertainty</p>
-          <h2>Still unknown</h2>
-          <ul className="unknown-list">
-            {lead.unknown_fields.map((field) => <li key={field}>{label(field)}</li>)}
-          </ul>
-          <p className="panel-copy">Unknown values do not become positive scoring signals or outreach permission.</p>
         </section>
       </div>
 
@@ -99,8 +191,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </section>
 
       <section className="offering-strip">
-        <div><p className="kicker">Approved offering · v{lead.offering.version}</p><strong>{lead.offering.description}</strong></div>
-        <p>{lead.offering.pricing_policy}</p>
+        <div>
+          <p className="kicker">Approved offering · v{lead.offering.version}</p>
+          <strong>{lead.offering.description}</strong>
+        </div>
+        <div>
+          <p className="kicker">Pricing policy</p>
+          <p>{lead.offering.pricing_policy}</p>
+        </div>
       </section>
 
       {lead.pre_call_brief ? (

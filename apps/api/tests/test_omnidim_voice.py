@@ -17,7 +17,7 @@ from app.omnidim_voice import (
     OmniDimRetryableError,
     dispatch_omnidim_call,
 )
-from app.persistence.models import Base, Call, ExternalMapping
+from app.persistence.models import Base, Call, Contact, ExternalMapping
 
 CALL_ID = UUID("00000000-0000-0000-0000-000000000099")
 
@@ -148,6 +148,11 @@ def test_database_dispatch_is_idempotent(tmp_path: Path) -> None:
     Base.metadata.create_all(engine)
     assert seed_demo(database_url)
     with Session(engine) as session:
+        contact = session.get(Contact, CONTACT_ID)
+        assert contact is not None
+        contact.identifier_encrypted_ref = "env:OMNIDIM_TEST_TO_NUMBER"
+        session.commit()
+
         call = Call(
             id=CALL_ID,
             organization_id=ORGANIZATION_ID,

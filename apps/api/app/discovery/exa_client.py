@@ -3,13 +3,14 @@ discovery/exa_client.py
 ========================
 Thin synchronous wrapper around the Exa REST API.
 
-Replaces the previous mcporter subprocess approach with a direct httpx call,
-making the discovery pipeline compatible with any environment (Vercel, Render,
-local, CI) without needing the mcporter CLI installed.
+Behaviour:
+  • If EXA_API_KEY is set in the environment → use the real Exa /search endpoint
+    (existing callers are unaffected).
+  • If EXA_API_KEY is absent or empty       → fall back to the free
+    DuckDuckGo-based web_searcher.exa_search shim transparently.
 
-Usage:
-    from app.discovery.exa_client import exa_search
-    text = exa_search("my query", num_results=8)
+This keeps every caller in the codebase working without any changes while
+making the whole pipeline zero-cost and zero-API-key when the key is not set.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from typing import Any
 
 import httpx
 
-# ── Load .env so the key is available when running outside uvicorn ────────────
+# ── Load .env ─────────────────────────────────────────────────────────────────
 _ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
 if _ENV_FILE.exists():
     for _line in _ENV_FILE.read_text().splitlines():
@@ -34,7 +35,7 @@ _EXA_BASE = "https://api.exa.ai"
 _TIMEOUT = 30.0
 
 
-def exa_search(
+def _exa_api_search(
     query: str,
     *,
     num_results: int = 8,
@@ -42,15 +43,7 @@ def exa_search(
     start_published_date: str | None = None,
     use_autoprompt: bool = False,
 ) -> str:
-    """
-    Call the Exa /search endpoint and return the concatenated text of all results.
-
-    Returns an empty string on any failure — callers treat enrichment as
-    best-effort so the lead always appears even without contact data.
-    """
-    if not EXA_API_KEY:
-        return ""
-
+    """Direct Exa REST API call (used only when EXA_API_KEY is present)."""
     payload: dict[str, Any] = {
         "query": query,
         "numResults": num_results,
@@ -81,8 +74,6 @@ def exa_search(
     except (httpx.HTTPError, httpx.TimeoutException, ValueError):
         return ""
 
-    # Concatenate title + URL + text from each result into one string
-    # so downstream regex extractors work the same as before.
     parts: list[str] = []
     for result in data.get("results", []):
         title = result.get("title", "")
@@ -92,3 +83,39 @@ def exa_search(
         parts.append(f"Title: {title}\nURL: {url}\n{text}\n{highlights}")
 
     return "\n---\n".join(parts)
+
+
+def exa_search(
+    query: str,
+    *,
+    num_results: int = 8,
+    include_domains: list[str] | None = None,
+    start_published_date: str | None = None,
+    use_autoprompt: bool = False,
+) -> str:
+    """
+    Call Exa if a key is available; otherwise delegate to the free
+    DuckDuckGo-based web_searcher shim.
+
+    Callers always receive the same concatenated-text string regardless of
+    which backend was used.
+    """
+    if EXA_API_KEY:
+        return _exa_api_search(
+            query,
+            num_results=num_results,
+            include_domains=include_domains,
+            start_published_date=start_published_date,
+            use_autoprompt=use_autoprompt,
+        )
+
+    # Free fallback — no API key needed
+    from app.discovery.web_searcher import exa_search as _ddg_search  # noqa: PLC0415
+
+    return _ddg_search(
+        query,
+        num_results=num_results,
+        include_domains=include_domains,
+        start_published_date=start_published_date,
+        use_autoprompt=use_autoprompt,
+    )

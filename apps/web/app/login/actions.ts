@@ -25,5 +25,5 @@ export async function enterDemoWorkspace() {
 
 export async function signOut() {
   (await cookies()).delete("sales_agent_session");
-  redirect("/login");
+  redirect("/");
 }

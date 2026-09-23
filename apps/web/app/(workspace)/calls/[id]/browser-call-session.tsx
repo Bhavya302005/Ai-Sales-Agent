@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CustomSelect } from "@/app/ui/custom-select";
+
 type Language = "en-IN" | "hi-IN";
 type SessionState = "ready" | "connecting" | "listening" | "thinking" | "speaking" | "interrupted" | "completed" | "error";
 type VoiceMessage = {
@@ -429,10 +431,18 @@ export function BrowserCallSession({ callId, maxDuration }: { callId: string; ma
         <p className="panel-copy">
           Browser speech · {dialogueMode === "gemini" ? "Gemini Flash-Lite processing" : dialogueMode === "anthropic" ? "Claude Haiku processing" : dialogueMode === "deterministic" ? "deterministic fallback processing" : "checking processing mode"}. Turn-by-turn rehearsal mode; real calls support barge-in.
         </p>
-        <label className="voice-language">Conversation language
-          <select value={language} onChange={(event) => setLanguage(event.target.value as Language)} disabled={state !== "ready"}>
-            <option value="en-IN">English (India)</option><option value="hi-IN">Hindi</option>
-          </select>
+        <label className="voice-language">
+          <span>Conversation language</span>
+          <CustomSelect
+            value={language}
+            onChange={(nextLang) => setLanguage(nextLang as Language)}
+            options={[
+              { value: "en-IN", label: "English (India)" },
+              { value: "hi-IN", label: "Hindi" },
+            ]}
+            disabled={state !== "ready"}
+            ariaLabel="Conversation language"
+          />
         </label>
         <div className="voice-actions">
           <button className="primary-button" type="button" onClick={start} disabled={state !== "ready"}>Start AI call</button>

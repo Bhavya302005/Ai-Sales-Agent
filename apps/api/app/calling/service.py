@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, not_, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.contact_secrets import is_dialable_phone_ref
 from app.jobs.service import IdempotencyConflict
 from app.persistence.models import (
     Call,
@@ -199,14 +200,21 @@ def request_call(
         .order_by(ConsentRecord.recorded_at.desc())
         .limit(1)
     )
-    valid_test_consent = bool(contact.demo_test_contact and consent)
+    valid_test_consent = bool(
+        consent
+        and (
+            contact.demo_test_contact
+            if transport == "browser"
+            else is_dialable_phone_ref(contact.identifier_encrypted_ref)
+        )
+    )
     check(
         "active_test_consent",
         valid_test_consent,
         (
             "Browser voice requires an active consent record for a verified test participant."
             if transport == "browser"
-            else "PSTN voice requires separately attested consent for the test participant."
+            else "PSTN voice requires separately attested consent and a dialable contact."
         ),
     )
     suppression = session.scalar(
@@ -274,9 +282,8 @@ def request_call(
             bool(
                 settings.omnidim_api_key
                 and settings.omnidim_agent_id
-                and settings.omnidim_test_to_number
             ),
-            "OmniDimension API key, agent, and consenting test number must be configured.",
+            "OmniDimension API key and agent must be configured.",
         )
     reservation = Decimal(
         str(

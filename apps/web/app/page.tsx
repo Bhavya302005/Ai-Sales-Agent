@@ -15,7 +15,7 @@ export default function Home() {
         consent, and handing the outcome to a person—without inventing missing facts.
       </p>
       <div className="landing-actions">
-        <Link className="primary-button action-link" href="/login">
+        <Link className="primary-button action-link" href="/onboarding">
           Open workspace
         </Link>
         {showDiagnostics ? <Link className="secondary-link" href="/voice-lab">Voice diagnostics</Link> : null}

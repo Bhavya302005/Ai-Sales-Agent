@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -36,6 +37,34 @@ def _span(claim: EvidenceClaim) -> dict[str, int | str]:
     return {"quote": claim.quote, "start": claim.start, "end": claim.end}
 
 
+def _extract_live_summary(excerpt: str) -> EvidenceClaim:
+    for line in excerpt.splitlines():
+        line = line.strip()
+        if len(line) >= 20 and not line.startswith("http") and not line.startswith("URL:"):
+            for sentence in re.split(r"(?<=[.!?])\s+", line):
+                sentence = sentence.strip()
+                if 15 <= len(sentence) <= 400:
+                    idx = excerpt.find(sentence)
+                    if idx >= 0:
+                        return EvidenceClaim(
+                            value=sentence,
+                            quote=sentence,
+                            start=idx,
+                            end=idx + len(sentence),
+                        )
+    cleaned = excerpt.strip()[:300].strip()
+    idx = excerpt.find(cleaned)
+    if idx < 0:
+        cleaned = excerpt[:min(100, len(excerpt))]
+        idx = 0
+    return EvidenceClaim(
+        value=cleaned,
+        quote=cleaned,
+        start=idx,
+        end=idx + len(cleaned),
+    )
+
+
 def extract_source(
     session: Session, *, organization_id: UUID, source: SourceDocument
 ) -> ExtractionOutcome:
@@ -47,6 +76,77 @@ def extract_source(
     )
     adapter = DeterministicExtractionAdapter()
     result, latency_ms = adapter.extract(source.evidence_excerpt, observed_at=source.observed_at)
+    if not result.actionable and (
+        source.source_type == "exa_live_search"
+        or source.discovery_actionable is True
+        or (source.canonical_url and not source.canonical_url.startswith("fixture://"))
+    ):
+        summary = _extract_live_summary(source.evidence_excerpt)
+        category = adapter._keyword_claim(
+            source.evidence_excerpt,
+            (
+                ("cloud migration", "cloud_migration"),
+                ("migrate", "cloud_migration"),
+                ("crm", "crm"),
+                ("erp", "erp"),
+                ("automation", "automation"),
+                ("digital", "automation"),
+                ("transformation", "automation"),
+                ("software", "automation"),
+                ("ai", "automation"),
+                ("consulting", "automation"),
+            ),
+        )
+        industry = adapter._keyword_claim(
+            source.evidence_excerpt,
+            (
+                ("manufacturing", "manufacturing"),
+                ("healthcare", "healthcare"),
+                ("retail", "retail"),
+                ("fintech", "financial_services"),
+                ("hospital", "healthcare"),
+                ("technology", "technology"),
+                ("it", "technology"),
+                ("enterprise", "technology"),
+            ),
+        )
+        geography = adapter._keyword_claim(
+            source.evidence_excerpt,
+            tuple(
+                (place, place)
+                for place in (
+                    "Gujarat",
+                    "Mumbai",
+                    "Delhi",
+                    "Bengaluru",
+                    "India",
+                    "UK",
+                    "US",
+                    "Australia",
+                )
+            ),
+            flags=re.IGNORECASE,
+        )
+        company_clue = None
+        if source.discovery_company and source.discovery_company in source.evidence_excerpt:
+            c_idx = source.evidence_excerpt.find(source.discovery_company)
+            company_clue = EvidenceClaim(
+                value=source.discovery_company,
+                quote=source.discovery_company,
+                start=c_idx,
+                end=c_idx + len(source.discovery_company),
+            )
+        result = ExtractionResult(
+            classification="buyer_requirement",
+            actionable=True,
+            requirement_summary=summary,
+            category=category,
+            industry=industry,
+            geography=geography,
+            company_clues=(company_clue,) if company_clue else (),
+            unknown_fields=(),
+        )
+        result.validate_evidence(source.evidence_excerpt)
     if existing is not None:
         resolution = resolve_requirement_company(
             session,

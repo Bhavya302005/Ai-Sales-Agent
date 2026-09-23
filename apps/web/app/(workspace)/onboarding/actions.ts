@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { apiFetch, type OfferingVersion } from "@/lib/api";
+import { apiFetch, type DiscoveryImport, type OfferingVersion } from "@/lib/api";
 
 function lines(formData: FormData, name: string): string[] {
   return String(formData.get(name) ?? "")
@@ -84,8 +84,22 @@ export async function confirmBusinessProfile(formData: FormData) {
       confirmed: true,
     }),
   });
+
+  if (workflowMode !== "calling_only") {
+    try {
+      await apiFetch<DiscoveryImport>("/api/v1/discovery/refresh", { method: "POST" });
+    } catch (err) {
+      console.error("Live Exa refresh failed, attempting fallback to demo snapshot:", err);
+      try {
+        await apiFetch<DiscoveryImport>("/api/v1/discovery/import-demo", { method: "POST" });
+      } catch (fallbackErr) {
+        console.error("Demo snapshot fallback also failed:", fallbackErr);
+      }
+    }
+  }
+
   revalidatePath("/onboarding");
-  revalidatePath("/sources");
+  revalidatePath("/leads");
   revalidatePath("/campaigns");
-  redirect(workflowMode === "calling_only" ? "/campaigns?start=upload" : "/sources?start=discover");
+  redirect(workflowMode === "calling_only" ? "/campaigns?start=upload" : "/leads?provider=live&start=discover");
 }

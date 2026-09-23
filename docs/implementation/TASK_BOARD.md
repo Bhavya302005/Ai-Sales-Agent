@@ -45,3 +45,5 @@ Status values: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`.
 | P08 | DONE | Discovery and lead review require a confirmed profile; stale results are filtered by active profile/version and browser verification removed pre-onboarding Exa content |
 | P09 | DONE | Business-evidence fields are controlled and remain unchanged after successful analysis or errors; 11 component tests and a live browser submission pass |
 | P10 | DONE | Tab-scoped draft persistence restores all text evidence after reload/remount; browser verification confirms values also survive completed analysis |
+| C03 | DONE | Make consent-attested CSV/XLSX contacts securely dialable through the selected PSTN provider without exposing raw phone data |
+| P11 | DONE | Unify discovery into Leads page with Exa refresh, search/filters bar, clickable post URLs, and verified phone numbers for all discovered leads |

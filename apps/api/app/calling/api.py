@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import Auth
 from app.calling.service import ACTIVE_CALL_STATES, request_call
 from app.config import Settings, get_settings
+from app.contact_secrets import is_dialable_phone_ref
 from app.db import get_session
 from app.jobs.service import IdempotencyConflict
 from app.omnidim_voice import (
@@ -293,6 +294,106 @@ def campaign_results(
     return _campaign_response(session, auth.organization_id, campaign)
 
 
+def _affirmative_provider_handoff(values: dict[str, Any]) -> bool:
+    accepted = {"yes", "true", "interested", "positive", "requested", "confirmed"}
+    for key in ("interest", "interested", "follow_up", "callback_requested"):
+        value = values.get(key)
+        if isinstance(value, bool) and value:
+            return True
+        if isinstance(value, str) and value.strip().casefold() in accepted:
+            return True
+    return False
+
+
+def _sync_single_omnidim_call(
+    session: Session,
+    call: Call,
+    settings: Settings,
+    organization_id: UUID,
+) -> bool:
+    if call.transport != "omnidim":
+        return False
+    mapping = omnidim_provider_mapping(session, call_id=call.id)
+    if mapping is None:
+        return False
+    provider = OmniDimClient(settings)
+    try:
+        result = provider.result(mapping.external_id)
+    except Exception:
+        return False
+    finally:
+        provider.close()
+    if result is None:
+        return False
+    terminal = result.status in {"completed", "busy", "failed", "no_answer"}
+    if terminal and not session.scalar(
+        select(TranscriptSegment.id).where(
+            TranscriptSegment.organization_id == organization_id,
+            TranscriptSegment.call_id == call.id,
+        )
+    ):
+        sequence = 1
+        for interaction in result.interactions[:100]:
+            if not isinstance(interaction, dict):
+                continue
+            for speaker, key in (("participant", "user_query"), ("agent", "bot_response")):
+                text = str(interaction.get(key) or "").strip()
+                if not text:
+                    continue
+                session.add(
+                    TranscriptSegment(
+                        organization_id=organization_id,
+                        call_id=call.id,
+                        sequence=sequence,
+                        speaker=speaker,
+                        started_ms=(sequence - 1) * 1000,
+                        ended_ms=sequence * 1000,
+                        text=text[:5000],
+                        language="en-IN",
+                        is_final=True,
+                    )
+                )
+                sequence += 1
+    call.usage = {
+        **call.usage,
+        "provider_status": result.status,
+        "duration_seconds": result.duration_seconds,
+        "provider_reported_estimated_cost": result.estimated_cost,
+        "provider_sentiment": result.sentiment,
+        "provider_summary": result.summary,
+        "provider_recording_available": result.recording_url is not None,
+        "provider_recording_url": result.recording_url,
+        "reservation_status": "released" if terminal else "reserved",
+    }
+    if result.status == "completed":
+        call.state = "completed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        call.outcome = (
+            "handoff_requested"
+            if _affirmative_provider_handoff(result.extracted_variables)
+            else "completed"
+        )
+        session.flush()
+        finalize_completed_call(
+            session,
+            organization_id=organization_id,
+            call_id=call.id,
+        )
+    elif result.status in {"busy", "no_answer"}:
+        call.state = "failed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        call.outcome = result.status
+    elif result.status == "failed":
+        call.state = "failed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        call.outcome = "temporary_provider_failure"
+    else:
+        call.state = "active"
+        call.started_at = call.started_at or datetime.now(UTC)
+    session.commit()
+    return True
+
+
 def _campaign_lead_response(
     session: Session, organization_id: UUID, item: CampaignLead
 ) -> CampaignLeadResponse:
@@ -306,9 +407,11 @@ def _campaign_lead_response(
             .where(
                 Contact.organization_id == organization_id,
                 Contact.company_id == lead.company_id,
-                Contact.demo_test_contact.is_(True),
+                Contact.channel == "phone",
+                Contact.identifier_encrypted_ref.is_not(None),
+                ~Contact.identifier_encrypted_ref.like("redacted:%"),
             )
-            .order_by(Contact.created_at)
+            .order_by(Contact.demo_test_contact.desc(), Contact.created_at.desc())
             .limit(1)
         )
     latest_call = session.scalar(
@@ -321,6 +424,12 @@ def _campaign_lead_response(
         .order_by(Call.created_at.desc())
         .limit(1)
     )
+    if latest_call and latest_call.transport == "omnidim" and latest_call.state in {"connecting", "active", "ending"}:
+        try:
+            _sync_single_omnidim_call(session, latest_call, get_settings(), organization_id)
+            session.refresh(latest_call)
+        except Exception:
+            pass
     qualification = (
         session.scalar(
             select(Qualification).where(
@@ -521,12 +630,17 @@ def attest_pstn_consent(
         select(Contact).where(
             Contact.id == contact_id,
             Contact.organization_id == auth.organization_id,
-            Contact.demo_test_contact.is_(True),
+            Contact.channel == "phone",
         )
     )
     if contact is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Verified test contact not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Phone contact not found"
+        )
+    if not is_dialable_phone_ref(contact.identifier_encrypted_ref):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Contact number is not securely available; re-import this contact",
         )
     now = datetime.now(UTC)
     existing = session.scalar(
@@ -547,8 +661,8 @@ def attest_pstn_consent(
             contact_id=contact.id,
             channel="pstn_voice",
             purpose="hackathon_demo_qualification",
-            scope="single_test_number",
-            source="operator_attested_test_participant",
+            scope="single_operator_confirmed_number",
+            source="operator_attested_contact_consent",
             status="active",
             recorded_at=now,
             expires_at=now + timedelta(hours=24),
@@ -652,17 +766,6 @@ def calling_provider(
     )
 
 
-def _affirmative_provider_handoff(values: dict[str, Any]) -> bool:
-    accepted = {"yes", "true", "interested", "positive", "requested", "confirmed"}
-    for key in ("interest", "interested", "follow_up", "callback_requested"):
-        value = values.get(key)
-        if isinstance(value, bool) and value:
-            return True
-        if isinstance(value, str) and value.strip().casefold() in accepted:
-            return True
-    return False
-
-
 @router.post("/calls/{call_id}/refresh", response_model=CallResponse)
 def refresh_provider_call(
     call_id: UUID,
@@ -683,105 +786,16 @@ def refresh_provider_call(
         raise HTTPException(status_code=404, detail="Call not found")
     if call.transport != "omnidim":
         raise HTTPException(status_code=409, detail="Call does not use OmniDimension")
-    mapping = omnidim_provider_mapping(session, call_id=call.id)
-    if mapping is None:
-        raise HTTPException(status_code=409, detail="Call has not been dispatched")
-    provider = OmniDimClient(settings)
-    try:
-        result = provider.result(mapping.external_id)
-    except OmniDimPermanentError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except OmniDimRetryableError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    finally:
-        provider.close()
-    if result is None:
-        return _call_response(call)
-    terminal = result.status in {"completed", "busy", "failed", "no_answer"}
-    if terminal and not session.scalar(
-        select(TranscriptSegment.id).where(
-            TranscriptSegment.organization_id == auth.organization_id,
-            TranscriptSegment.call_id == call.id,
-        )
-    ):
-        sequence = 1
-        for interaction in result.interactions[:100]:
-            if not isinstance(interaction, dict):
-                continue
-            for speaker, key in (("participant", "user_query"), ("agent", "bot_response")):
-                text = str(interaction.get(key) or "").strip()
-                if not text:
-                    continue
-                session.add(
-                    TranscriptSegment(
-                        organization_id=auth.organization_id,
-                        call_id=call.id,
-                        sequence=sequence,
-                        speaker=speaker,
-                        started_ms=(sequence - 1) * 1000,
-                        ended_ms=sequence * 1000,
-                        text=text[:5000],
-                        # BUG FIX: use a valid locale instead of "unknown" so downstream
-                        # language-specific processing (e.g. TTS, scoring) doesn't fail.
-                        language="en-IN",
-                        is_final=True,
-                    )
-                )
-                sequence += 1
-    call.usage = {
-        **call.usage,
-        "provider_status": result.status,
-        "duration_seconds": result.duration_seconds,
-        "provider_reported_estimated_cost": result.estimated_cost,
-        "provider_sentiment": result.sentiment,
-        "provider_summary": result.summary,
-        "provider_recording_available": result.recording_url is not None,
-        "reservation_status": "released" if terminal else "reserved",
-    }
-    if result.status == "completed":
-        call.state = "completed"
-        call.ended_at = call.ended_at or datetime.now(UTC)
-        call.outcome = (
-            "handoff_requested"
-            if _affirmative_provider_handoff(result.extracted_variables)
-            else "completed"
-        )
-        session.flush()
-        finalize_completed_call(
-            session,
-            organization_id=auth.organization_id,
-            call_id=call.id,
-        )
-    elif result.status in {"busy", "no_answer"}:
-        call.state = "failed"
-        call.ended_at = call.ended_at or datetime.now(UTC)
-        call.outcome = result.status
-    elif result.status == "failed":
-        call.state = "failed"
-        call.ended_at = call.ended_at or datetime.now(UTC)
-        call.outcome = "temporary_provider_failure"
-    else:
-        call.state = "active"
-        call.started_at = call.started_at or datetime.now(UTC)
-    session.add(
-        AuditLog(
-            organization_id=auth.organization_id,
-            actor_id=auth.user_id,
-            action="omnidim_call_refreshed",
-            target_type="call",
-            target_id=call.id,
-            reason=f"provider_status={result.status}",
-            request_id=request.state.request_id,
-        )
-    )
-    session.commit()
+    _sync_single_omnidim_call(session, call, settings, auth.organization_id)
+    session.refresh(call)
     return _call_response(call)
 
 
-@router.get("/calls/{call_id}/recording", response_class=Response)
+@router.get("/calls/{call_id}/recording")
 def get_provider_recording(
     call_id: UUID,
     auth: Auth,
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
@@ -792,25 +806,75 @@ def get_provider_recording(
         raise HTTPException(status_code=404, detail="Call not found")
     if call.transport != "omnidim":
         raise HTTPException(status_code=409, detail="Recording is not provided by OmniDimension")
-    mapping = omnidim_provider_mapping(session, call_id=call.id)
-    if mapping is None:
-        raise HTTPException(status_code=409, detail="Call has not been dispatched")
-    provider = OmniDimClient(settings)
+    # Use cached URL from usage blob first (avoids re-fetching call logs)
+    recording_url = call.usage.get("provider_recording_url") if isinstance(call.usage, dict) else None
+    if not recording_url or not isinstance(recording_url, str) or not recording_url.startswith("https://"):
+        # Fall back: re-fetch from OmniDimension
+        mapping = omnidim_provider_mapping(session, call_id=call.id)
+        if mapping is None:
+            raise HTTPException(status_code=409, detail="Call has not been dispatched")
+        provider = OmniDimClient(settings)
+        try:
+            result = provider.result(mapping.external_id)
+        except OmniDimPermanentError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OmniDimRetryableError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        finally:
+            provider.close()
+        if result is None or result.recording_url is None:
+            raise HTTPException(status_code=404, detail="Recording is not available yet")
+        recording_url = result.recording_url
+        call.usage = {**call.usage, "provider_recording_url": recording_url}
+        session.commit()
+    # Proxy the audio bytes so the browser avoids cross-origin CORS restrictions
+    import httpx as _httpx
     try:
-        recording = provider.recording(mapping.external_id)
-    except OmniDimPermanentError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except OmniDimRetryableError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    finally:
-        provider.close()
-    if recording is None:
-        raise HTTPException(status_code=404, detail="Recording is not available yet")
-    content, media_type = recording
+        resp = _httpx.get(recording_url, timeout=_httpx.Timeout(30, connect=5), follow_redirects=True)
+        resp.raise_for_status()
+    except _httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="Recording temporarily unavailable") from exc
+    content_type = resp.headers.get("content-type", "audio/mpeg").split(";")[0].strip()
+    if not content_type.startswith("audio/"):
+        content_type = "audio/mpeg"
+    
+    audio_bytes = resp.content
+    total_bytes = len(audio_bytes)
+    range_header = request.headers.get("range")
+
+    if range_header and range_header.startswith("bytes="):
+        try:
+            parts = range_header.replace("bytes=", "").split("-")
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if len(parts) > 1 and parts[1] else total_bytes - 1
+            if 0 <= start < total_bytes:
+                end = min(end, total_bytes - 1)
+                chunk = audio_bytes[start : end + 1]
+                return Response(
+                    content=chunk,
+                    status_code=206,
+                    media_type=content_type,
+                    headers={
+                        "Content-Range": f"bytes {start}-{end}/{total_bytes}",
+                        "Accept-Ranges": "bytes",
+                        "Content-Length": str(len(chunk)),
+                        "Cache-Control": "private, max-age=3600",
+                        "Content-Disposition": "inline",
+                    },
+                )
+        except Exception:
+            pass
+
     return Response(
-        content=content,
-        media_type=media_type,
-        headers={"Cache-Control": "private, no-store", "Content-Disposition": "inline"},
+        content=audio_bytes,
+        status_code=200,
+        media_type=content_type,
+        headers={
+            "Content-Length": str(total_bytes),
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "private, max-age=3600",
+            "Content-Disposition": "inline",
+        },
     )
 
 
@@ -819,12 +883,19 @@ def get_call(
     call_id: UUID,
     auth: Auth,
     session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> CallResponse:
     call = session.scalar(
         select(Call).where(Call.id == call_id, Call.organization_id == auth.organization_id)
     )
     if call is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Call not found")
+    if call.transport == "omnidim" and call.state in {"connecting", "active", "ending"}:
+        try:
+            _sync_single_omnidim_call(session, call, settings, auth.organization_id)
+            session.refresh(call)
+        except Exception:
+            pass
     return _call_response(call)
 
 

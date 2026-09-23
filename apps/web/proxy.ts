@@ -2,7 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 
 export function proxy(request: NextRequest) {
   if (!request.cookies.has("sales_agent_session")) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const returnTo = encodeURIComponent(request.nextUrl.pathname + request.nextUrl.search);
+    return NextResponse.redirect(new URL(`/login?returnTo=${returnTo}`, request.url));
   }
   return NextResponse.next();
 }

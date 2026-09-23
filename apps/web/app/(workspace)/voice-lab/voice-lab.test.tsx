@@ -59,7 +59,7 @@ describe("VoiceLab browser fallback", () => {
     );
 
     render(<VoiceLab />);
-    expect(screen.getByDisplayValue("Browser fallback — no Sarvam credits")).toBeInTheDocument();
+    expect(screen.getByText("Browser fallback — no Sarvam credits")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start one-turn test" }));
     expect(screen.getByText("Listening in English — speak now")).toBeInTheDocument();

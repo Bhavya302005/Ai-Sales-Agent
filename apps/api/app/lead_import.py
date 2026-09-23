@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import Auth
 from app.config import Settings, get_settings
+from app.contact_secrets import seal_phone_number
 from app.db import get_session
 from app.discovery.connectors import FetchedSource, SourceCandidate
 from app.discovery.ingestion import ingest_source
@@ -265,8 +266,9 @@ async def import_leads(
             ),
         )
         if not ingestion.created:
+            # Continue through contact upsert so a previously redacted import can be
+            # repaired securely by re-uploading the same source row.
             duplicates += 1
-            continue
         outcome = extract_source(
             session, organization_id=auth.organization_id, source=ingestion.document
         )
@@ -282,27 +284,33 @@ async def import_leads(
             )
         )
         is_test_number = row["phone"] == _configured_test_number(settings)
+        encrypted_reference = (
+            (
+                "env:OMNIDIM_TEST_TO_NUMBER"
+                if settings.voice_transport == "omnidim"
+                else "env:TWILIO_TEST_TO_NUMBER"
+            )
+            if is_test_number
+            else seal_phone_number(row["phone"], settings)
+        )
         if contact is None:
             contact = Contact(
                 organization_id=auth.organization_id,
                 company_id=lead.company_id,
                 display_name=row["contact_name"] or "Imported contact",
                 channel="phone",
-                identifier_encrypted_ref=(
-                    (
-                        "env:OMNIDIM_TEST_TO_NUMBER"
-                        if settings.voice_transport == "omnidim"
-                        else "env:TWILIO_TEST_TO_NUMBER"
-                    )
-                    if is_test_number
-                    else "redacted:client_import"
-                ),
+                identifier_encrypted_ref=encrypted_reference,
                 identifier_hash=phone_hash,
-                verification_status="verified" if is_test_number else "unverified",
+                verification_status="verified" if is_test_number else "consent_attestation_required",
                 demo_test_contact=is_test_number,
             )
             session.add(contact)
             session.flush()
+        elif contact.identifier_encrypted_ref == "redacted:client_import":
+            contact.identifier_encrypted_ref = encrypted_reference
+            contact.verification_status = (
+                "verified" if is_test_number else "consent_attestation_required"
+            )
         consent = session.scalar(
             select(ConsentRecord).where(
                 ConsentRecord.organization_id == auth.organization_id,
@@ -352,7 +360,7 @@ async def import_leads(
                 action="calling_only_lead_imported",
                 target_type="lead",
                 target_id=lead.id,
-                reason=f"client_{suffix}; phone stored as one-way hash only",
+                reason=f"client_{suffix}; phone stored as an encrypted reference plus hash",
                 request_id=request.state.request_id,
             )
         )

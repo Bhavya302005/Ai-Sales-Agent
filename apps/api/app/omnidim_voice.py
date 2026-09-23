@@ -9,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.persistence.models import Call, Company, ExternalMapping, Lead, Requirement
+from app.contact_secrets import resolve_phone_number
+from app.persistence.models import Call, Company, Contact, ExternalMapping, Lead, Requirement
 
 
 class OmniDimPermanentError(ValueError):
@@ -76,12 +77,15 @@ class OmniDimClient:
         except httpx.HTTPStatusError as exc:
             raise OmniDimRetryableError("OmniDimension request failed") from exc
 
-    def dispatch(self, *, call_id: UUID, context: dict[str, str]) -> OmniDimDispatch:
-        if self._agent_id is None or self._to_number is None:
-            raise OmniDimPermanentError("OmniDimension agent and test number are not configured")
+    def dispatch(
+        self, *, call_id: UUID, context: dict[str, str], to_number: str | None = None
+    ) -> OmniDimDispatch:
+        destination = to_number or self._to_number
+        if self._agent_id is None or destination is None:
+            raise OmniDimPermanentError("OmniDimension agent and destination are not configured")
         payload: dict[str, Any] = {
             "agent_id": self._agent_id,
-            "to_number": self._to_number,
+            "to_number": destination,
             "call_context": context,
             "metadata": {"local_call_id": str(call_id), "source": "signalpath_demo"},
         }
@@ -243,7 +247,20 @@ def dispatch_omnidim_call(
         return OmniDimDispatch(request_id=existing.external_id, status="existing")
     adapter = client or OmniDimClient(settings)
     try:
-        result = adapter.dispatch(call_id=call.id, context=_call_context(session, call))
+        contact = session.scalar(
+            select(Contact).where(
+                Contact.id == call.contact_id,
+                Contact.organization_id == call.organization_id,
+            )
+        )
+        if contact is None:
+            raise OmniDimPermanentError("Call contact no longer exists")
+        destination = resolve_phone_number(contact.identifier_encrypted_ref, settings)
+        result = adapter.dispatch(
+            call_id=call.id,
+            context=_call_context(session, call),
+            to_number=destination,
+        )
     except Exception:
         call.state = "failed"
         call.outcome = "provider_dispatch_failed"

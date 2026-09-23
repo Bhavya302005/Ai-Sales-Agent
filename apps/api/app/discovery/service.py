@@ -1,5 +1,6 @@
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -246,35 +247,76 @@ def discover_with_exa(
     timeout_seconds: int = 30,
     max_results: int = 30,
 ) -> list[DiscoveryItem]:
-    """Run all buyer-intent queries against Exa and return deduplicated DiscoveryItems.
+    """Run all buyer-intent queries against Exa in parallel and return deduplicated DiscoveryItems.
 
-    Uses the multi-platform 22-query engine built from the product version's ICP.
+    Uses:
+      • 22-query keyword engine (existing) — built from the product version's ICP
+      • Exa Agent (new)               — multi-step agentic research with structured output
+
     Results older than _CUTOFF_DAYS are discarded before being returned.
     """
     thirty_ago = (
         datetime.now(UTC) - timedelta(days=_CUTOFF_DAYS)
     ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
+    queries = build_requirement_queries(product_version)
     results: list[DiscoveryItem] = []
     seen: set[str] = set()
 
-    for query_str, include_domains in build_requirement_queries(product_version):
-        raw_text = _exa_raw(
-            query_str,
-            num_results=10,
-            include_domains=include_domains or None,
-            start_published_date=thirty_ago,
-        )
-        if not raw_text:
-            continue
-        for item in _parse_exa_text(raw_text, query_str):
-            if item.canonical_url in seen:
+    def _execute_query(pair: tuple[str, list[str]]) -> tuple[str, str]:
+        q_str, domains = pair
+        try:
+            raw = _exa_raw(
+                q_str,
+                num_results=10,
+                include_domains=domains or None,
+                start_published_date=thirty_ago,
+            )
+            return q_str, raw or ""
+        except Exception:
+            return q_str, ""
+
+    def _execute_agent() -> list[DiscoveryItem]:
+        """Run the Exa Agent and convert to DiscoveryItems."""
+        try:
+            from app.discovery.exa_agent import (  # noqa: PLC0415
+                run_exa_agent,
+                exa_agent_leads_to_discovery_items,
+            )
+            leads = run_exa_agent(product_version, max_leads=15)
+            return exa_agent_leads_to_discovery_items(leads, query="exa_agent_discovery")
+        except Exception:
+            return []
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        # Submit all keyword queries
+        futures = [pool.submit(_execute_query, q) for q in queries]
+        # Also submit the Exa Agent as a parallel task
+        agent_future = pool.submit(_execute_agent)
+
+        # Collect keyword query results
+        for future in as_completed(futures):
+            q_str, raw_text = future.result()
+            if not raw_text:
                 continue
-            seen.add(item.canonical_url)
-            results.append(item)
-            if len(results) >= max_results:
-                return results
-    return results
+            for item in _parse_exa_text(raw_text, q_str):
+                if item.canonical_url in seen:
+                    continue
+                seen.add(item.canonical_url)
+                results.append(item)
+                if len(results) >= max_results:
+                    break
+
+        # Collect Exa Agent results (structured, higher quality — prepend so they rank first)
+        agent_items = agent_future.result()
+        agent_items_new = [it for it in agent_items if it.canonical_url not in seen]
+        for it in agent_items_new:
+            seen.add(it.canonical_url)
+        # Prepend agent results so they appear first (highest quality)
+        results = agent_items_new + results
+
+    return results[:max_results]
+
 
 
 def approved_questions() -> tuple[str, ...]:

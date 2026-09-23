@@ -247,6 +247,7 @@ def test_extraction_job_status_is_tenant_scoped(tmp_path: Path) -> None:
 
 def test_manual_url_import_is_disabled_in_fixture_mode(tmp_path: Path) -> None:
     with _client(tmp_path / "manual-disabled.db") as (client, settings, _):
+        settings.discovery_mode = "fixture"
         response = client.post(
             "/api/v1/sources/import-url",
             headers=_headers(settings),

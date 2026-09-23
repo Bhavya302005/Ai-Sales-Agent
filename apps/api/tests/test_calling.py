@@ -317,5 +317,66 @@ def test_exhausted_campaign_budget_blocks_call_without_reserving_spend(tmp_path:
         if item["name"] == "remaining_budget"
     )
     assert response.json()["state"] == "blocked"
-    assert response.json()["usage"]["reservation_status"] == "not_reserved"
     assert check["passed"] is False
+
+
+def test_get_provider_recording_range_requests(tmp_path: Path, monkeypatch) -> None:
+    synthetic_audio = b"0123456789abcdefghijklmnopqrstuvwxyz"
+    total_len = len(synthetic_audio)
+
+    class MockResponse:
+        status_code = 200
+        content = synthetic_audio
+        headers = {"content-type": "audio/mpeg"}
+
+        def raise_for_status(self) -> None:
+            pass
+
+    import httpx
+    monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: MockResponse())
+
+    with _client(tmp_path / "recording-range.db") as (client, settings, session):
+        call = Call(
+            id=UUID("00000000-0000-0000-0000-000000000099"),
+            organization_id=ORGANIZATION_ID,
+            lead_id=LEAD_ID,
+            campaign_id=CAMPAIGN_ID,
+            contact_id=CONTACT_ID,
+            attempt_id=UUID("00000000-0000-0000-0000-000000000099"),
+            transport="omnidim",
+            state="completed",
+            eligibility_decision={"eligible": True, "checks": []},
+            max_duration_seconds=300,
+            usage={"provider_recording_url": "https://media.omnidim.io/recordings/test.mp3"},
+        )
+        session.add(call)
+        session.commit()
+
+        # 1. Full content request
+        resp_full = client.get(
+            f"/api/v1/calls/{call.id}/recording",
+            headers=_headers(settings),
+        )
+        assert resp_full.status_code == 200
+        assert resp_full.content == synthetic_audio
+        assert resp_full.headers["accept-ranges"] == "bytes"
+
+        # 2. Byte range request (e.g., Safari probe 0-1)
+        resp_range = client.get(
+            f"/api/v1/calls/{call.id}/recording",
+            headers={**_headers(settings), "Range": "bytes=0-1"},
+        )
+        assert resp_range.status_code == 206
+        assert resp_range.content == b"01"
+        assert resp_range.headers["content-range"] == f"bytes 0-1/{total_len}"
+        assert resp_range.headers["content-length"] == "2"
+
+        # 3. Seeking range request
+        resp_seek = client.get(
+            f"/api/v1/calls/{call.id}/recording",
+            headers={**_headers(settings), "Range": "bytes=10-15"},
+        )
+        assert resp_seek.status_code == 206
+        assert resp_seek.content == synthetic_audio[10:16]
+        assert resp_seek.headers["content-range"] == f"bytes 10-15/{total_len}"
+

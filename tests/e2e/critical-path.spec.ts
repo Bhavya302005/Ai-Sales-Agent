@@ -109,10 +109,6 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
   await installBrowserVoiceFakes(page);
 
   await page.goto("/leads");
-  await expect(page).toHaveURL(/\/login$/);
-  await page.getByRole("button", { name: "Continue to workspace" }).click();
-  await expect(page).toHaveURL(/\/onboarding$/);
-  await page.goto("/leads");
   await expect(page.getByRole("heading", { name: "Evidence before outreach." })).toBeVisible();
 
   await page.getByRole("link", { name: /Implement SharePoint Online/ }).click();
@@ -195,8 +191,7 @@ test("approved evidence becomes a consent-gated call, handoff, and idempotent CR
 });
 
 test("owner controls and due campaign processing remain operator-driven", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Continue to workspace" }).click();
+  await page.goto("/onboarding");
   await expect(page).toHaveURL(/\/onboarding$/);
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
@@ -219,8 +214,7 @@ test("owner controls and due campaign processing remain operator-driven", async 
 
 test("mobile workspace remains usable as an installable web app", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Continue to workspace" }).click();
+  await page.goto("/onboarding");
   await expect(page).toHaveURL(/\/onboarding$/);
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", /manifest\.webmanifest/);
   await expect(page.locator(".sidebar").getByRole("link", { name: "Campaign" })).toBeVisible();
@@ -233,19 +227,15 @@ test("mobile workspace remains usable as an installable web app", async ({ page 
   });
 });
 
-test("protected workspace routes return to login after sign-out", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Continue to workspace" }).click();
+test("protected workspace routes return to home after sign-out", async ({ page }) => {
+  await page.goto("/onboarding");
   await expect(page).toHaveURL(/\/onboarding$/);
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/login$/);
-  await page.goto("/analytics");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("new users can analyze business evidence before choosing a workflow", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Continue to workspace" }).click();
+  await page.goto("/onboarding");
   await expect(page).toHaveURL(/\/onboarding$/);
   await expect(page.getByRole("heading", { name: "Set up your business" })).toBeVisible();
   await expect(page.getByText("Tell us about your business")).toBeVisible();

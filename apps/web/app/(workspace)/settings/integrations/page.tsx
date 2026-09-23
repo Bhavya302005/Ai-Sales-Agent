@@ -1,4 +1,5 @@
 import { getCampaigns, getCrmStatus, getDiscoveryStatus, getHubSpotContacts } from "@/lib/api";
+import { CustomSelect } from "@/app/ui/custom-select";
 
 import { importHubSpotContact } from "./actions";
 
@@ -28,18 +29,54 @@ export default async function IntegrationsPage() {
         <span className={discovery.live_refresh_available ? "knowledge-state callable" : "knowledge-state blocked"}>{discovery.live_refresh_available ? "Ready" : "Not connected"}</span>
         <p>{discovery.live_refresh_available ? "Public opportunities can be refreshed from the Discover workspace." : "Connect an approved public-search provider in deployment settings to enable live discovery."}</p>
       </section>
-      {contacts ? <section className="integration-card operations-section">
-        <div><p className="kicker">CRM lead import</p><h2>{contacts.label}</h2></div>
-        <span className="knowledge-state callable">Live preview</span>
-        <form action={importHubSpotContact} className="hubspot-import-form">
-          <label>CRM contact<select name="external_contact_id" required><option value="">Choose an importable contact</option>{contacts.contacts.filter((item) => item.importable).map((item) => <option key={item.external_id} value={item.external_id}>{item.display_name} · {item.company} · {item.masked_phone}</option>)}</select></label>
-          <label>Calling-only campaign<select name="campaign_id" required><option value="">Choose campaign</option>{campaigns.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label className="wide-field">Actual business requirement<textarea maxLength={2000} minLength={5} name="requirement" required rows={4} /></label>
-          <label className="wide-field">Consent basis<input maxLength={500} minLength={5} name="consent_basis" required /></label>
-          <label className="wide-field consent-check"><input name="consent_attested" required type="checkbox" /> I confirm this contact consented to the selected outreach workflow.</label>
-          <button className="primary-button" type="submit">Import for review</button>
-        </form>
-      </section> : <section className="integration-card operations-section"><div><p className="kicker">CRM lead import</p><h2>Connect HubSpot to import contacts</h2></div><span className="knowledge-state blocked">Connection required</span><p>A workspace owner can enable the HubSpot private-app connection in deployment settings.</p></section>}
+      {contacts ? (
+        <section className="integration-card operations-section">
+          <div><p className="kicker">CRM lead import</p><h2>{contacts.label}</h2></div>
+          <span className="knowledge-state callable">Live preview</span>
+          <form action={importHubSpotContact} className="hubspot-import-form">
+            <label>
+              <span>CRM contact</span>
+              <CustomSelect
+                name="external_contact_id"
+                defaultValue=""
+                placeholder="Choose an importable contact"
+                options={contacts.contacts
+                  .filter((item) => item.importable)
+                  .map((item) => ({
+                    value: item.external_id,
+                    label: `${item.display_name} · ${item.company} · ${item.masked_phone}`,
+                  }))}
+                required
+                ariaLabel="CRM contact"
+              />
+            </label>
+            <label>
+              <span>Calling-only campaign</span>
+              <CustomSelect
+                name="campaign_id"
+                defaultValue=""
+                placeholder="Choose campaign"
+                options={campaigns.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                required
+                ariaLabel="Calling-only campaign"
+              />
+            </label>
+            <label className="wide-field">Actual business requirement<textarea maxLength={2000} minLength={5} name="requirement" required rows={4} /></label>
+            <label className="wide-field">Consent basis<input maxLength={500} minLength={5} name="consent_basis" required /></label>
+            <label className="wide-field consent-check"><input name="consent_attested" required type="checkbox" /> I confirm this contact consented to the selected outreach workflow.</label>
+            <button className="primary-button" type="submit">Import for review</button>
+          </form>
+        </section>
+      ) : (
+        <section className="integration-card operations-section">
+          <div><p className="kicker">CRM lead import</p><h2>Connect HubSpot to import contacts</h2></div>
+          <span className="knowledge-state blocked">Connection required</span>
+          <p>A workspace owner can enable the HubSpot private-app connection in deployment settings.</p>
+        </section>
+      )}
     </>
   );
 }
