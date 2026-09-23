@@ -678,7 +678,7 @@ h1 { max-width: 760px; margin: 16px 0; font-size: clamp(38px, 6.2vw, 62px); line
 .workspace-main {
   flex: 1 1 0%;
   min-width: 0;
-  padding: 18px clamp(20px, 4vw, 56px) 48px 20px;
+  padding: 18px 24px 48px;
   position: relative;
   z-index: 1;
 }
