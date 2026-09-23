@@ -1,10 +1,10 @@
 import Link from "next/link";
 
-import { signOut } from "@/app/login/actions";
 import { getNotifications, getViewer } from "@/lib/api";
 import { diagnosticsEnabled } from "@/lib/runtime";
 
-import { PrimaryNav, type NavEntry } from "./primary-nav";
+import type { NavEntry } from "./primary-nav";
+import { WorkspaceSidebar } from "./workspace-sidebar";
 
 const primaryNavigation: readonly [label: string, href: string][] = [
   ["Business profile", "/onboarding"],
@@ -28,33 +28,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   }));
   return (
     <div className="product-shell">
-      <aside className="sidebar">
-        <div className="sidebar-top">
-          <Link className="brand" href="/onboarding">
-            Signal<span>Path</span>
-          </Link>
-          <div className="workspace-label">
-            <span>Workspace</span>
-            <strong>{workspace.name}</strong>
-          </div>
-        </div>
-        <PrimaryNav navigation={navigation} />
-        <div className="sidebar-bottom">
-          <div className="sidebar-promo">
-            <p className="sidebar-promo-title">Evidence-first calling</p>
-            <p className="sidebar-promo-copy">Every call stays consent-gated, transcript-backed, and human-owned.</p>
-          </div>
-          <PrimaryNav navigation={[{ label: "Integrations", href: "/settings/integrations" }]} />
-          <div className="sidebar-footer">
-            <span>{me.role}</span>
-            <form action={signOut}>
-              <button className="text-button" type="submit">
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </aside>
+      <WorkspaceSidebar me={me} navigation={navigation} workspace={workspace} />
       <main className="workspace-main">
         <div className="workspace-journey" aria-label="Product journey">
           {[

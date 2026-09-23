@@ -11,7 +11,13 @@ export type NavEntry = {
   badge?: number;
 };
 
-export function PrimaryNav({ navigation }: { navigation: readonly NavEntry[] }) {
+export function PrimaryNav({
+  navigation,
+  onSelect,
+}: {
+  navigation: readonly NavEntry[];
+  onSelect?: () => void;
+}) {
   const pathname = usePathname();
   return (
     <nav aria-label="Primary">
@@ -24,6 +30,7 @@ export function PrimaryNav({ navigation }: { navigation: readonly NavEntry[] }) 
             className={isActive ? "nav-link active" : "nav-link"}
             href={href}
             key={href}
+            onClick={onSelect}
           >
             {Icon ? <Icon className="nav-link-icon" /> : null}
             <span className="nav-link-label">{label}</span>
