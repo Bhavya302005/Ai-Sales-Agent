@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface CustomSelectOption {
   value: string;
@@ -40,18 +40,18 @@ export function CustomSelect({
   const optionsListRef = useRef<HTMLDivElement>(null);
 
   const isControlled = controlledValue !== undefined;
-  const currentValue = isControlled ? controlledValue : internalValue;
-
-  const selectedOption = options.find((opt) => opt.value === currentValue);
+  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue);
 
   // Sync internal value when defaultValue changes from external props (e.g. Next.js navigation)
-  useEffect(() => {
-    if (!isControlled) {
-      setInternalValue(defaultValue);
-    }
-  }, [defaultValue, isControlled]);
+  if (!isControlled && defaultValue !== prevDefaultValue) {
+    setPrevDefaultValue(defaultValue);
+    setInternalValue(defaultValue);
+  }
 
-  function handleSelect(val: string) {
+  const currentValue = isControlled ? controlledValue : internalValue;
+  const selectedOption = options.find((opt) => opt.value === currentValue);
+
+  const handleSelect = useCallback((val: string) => {
     if (!isControlled) {
       setInternalValue(val);
     }
@@ -59,7 +59,7 @@ export function CustomSelect({
     setIsOpen(false);
     setFocusedIndex(-1);
     triggerRef.current?.focus();
-  }
+  }, [isControlled, onChange]);
 
   // Intercept form submission if required and no value is selected
   useEffect(() => {
@@ -133,7 +133,7 @@ export function CustomSelect({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, focusedIndex, options, currentValue, disabled]);
+  }, [isOpen, focusedIndex, options, currentValue, disabled, handleSelect]);
 
   // Scroll focused option into view
   useEffect(() => {

@@ -116,17 +116,21 @@ export function BusinessSetup({ productName, active }: Props) {
   return (
     <div className="business-setup">
       {active?.is_callable ? (
-        <section className="detail-panel active-profile-card">
-          <div className="section-heading">
-            <div>
-              <p className="kicker">Verified Profile · Version {active.version} Active</p>
-              <h2>{companyName || productName} is configured and ready</h2>
+        <section className="active-profile-card">
+          <div className="active-profile-info">
+            <div className="active-profile-header-row">
+              <span className="active-profile-pill">
+                <span className="active-profile-dot" />
+                Active Profile · Version {active.version}
+              </span>
             </div>
-            <span className="knowledge-state callable">Active profile locked</span>
+            <h2 className="active-profile-title">
+              {companyName || productName} is configured and ready
+            </h2>
+            <p className="active-profile-copy">
+              Powering autonomous lead matching, fit scoring, and voice qualification across all campaigns.
+            </p>
           </div>
-          <p className="panel-copy">
-            Your business profile is already active and powering your lead matching, fit scoring, and AI calls. <strong>You do not have to click &ldquo;Analyze my business&rdquo; again</strong> unless you want to update your company details or add new documents to create a new profile version.
-          </p>
           <div className="active-profile-quick-actions">
             <Link className="primary-button" href="/leads?provider=live">
               View matching leads →

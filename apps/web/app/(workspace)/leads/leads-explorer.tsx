@@ -305,65 +305,68 @@ export function LeadsExplorer({
 
           return (
             <Link className="lead-row" href={`/leads/${lead.id}`} key={lead.id}>
-              <div>
+              <div className="lead-header">
                 <div className="lead-meta">
                   <span className="lead-primary-name">{displayName}</span>
                   <span>·</span>
                   <span>{subtitle}</span>
-                  {postDate ? (
-                    <>
-                      <span>·</span>
-                      <span className="lead-post-date" title={postDate.tooltip} suppressHydrationWarning>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.65 }}>
-                          <circle cx="12" cy="12" r="10" />
-                          <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                        {postDate.display}
-                      </span>
-                    </>
-                  ) : null}
                 </div>
-                <h2>{lead.normalized_need}</h2>
-                <p>{lead.source_url.startsWith("fixture://") ? "Sample opportunity data" : lead.source_url}</p>
 
-                <div className="lead-contact-badges">
-                  {lead.best_phone ? (
-                    <span className="contact-badge phone-badge" title="Verified phone number">
-                      <span className="badge-icon">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                        </svg>
-                      </span>
-                      <strong>{lead.best_phone}</strong>
-                      <span className="badge-action">Ready</span>
-                    </span>
-                  ) : (
-                    <span className="contact-badge phone-pending">
-                      <span className="badge-icon">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                        </svg>
-                      </span>
-                      <span>Phone enriched on demand</span>
-                    </span>
-                  )}
-                  {lead.best_email ? (
-                    <span className="contact-badge email-badge" title="Verified email">
-                      <span className="badge-icon">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="2" y="4" width="20" height="16" rx="2" />
-                          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                        </svg>
-                      </span>
-                      <span>{lead.best_email}</span>
-                    </span>
-                  ) : null}
-                </div>
+                {postDate ? (
+                  <span className="lead-post-date" title={postDate.tooltip} suppressHydrationWarning>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.65 }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    {postDate.display}
+                  </span>
+                ) : null}
               </div>
 
-              <div className="score-orb" aria-label={lead.score === null ? "Not scored" : `Score ${lead.score}`}>
-                {lead.score ?? "—"}
-                <span>fit</span>
+              <div className="lead-body">
+                <div className="lead-main">
+                  <h2>{lead.normalized_need}</h2>
+                  <p>{lead.source_url.startsWith("fixture://") ? "Sample opportunity data" : lead.source_url}</p>
+
+                  <div className="lead-contact-badges">
+                    {lead.best_phone ? (
+                      <span className="contact-badge phone-badge" title="Verified phone number">
+                        <span className="badge-icon">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                          </svg>
+                        </span>
+                        <strong>{lead.best_phone}</strong>
+                        <span className="badge-action">Ready</span>
+                      </span>
+                    ) : (
+                      <span className="contact-badge phone-pending">
+                        <span className="badge-icon">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                          </svg>
+                        </span>
+                        <span>Phone enriched on demand</span>
+                      </span>
+                    )}
+                    {lead.best_email ? (
+                      <span className="contact-badge email-badge" title="Verified email">
+                        <span className="badge-icon">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                          </svg>
+                        </span>
+                        <span>{lead.best_email}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="score-orb" aria-label={lead.score === null ? "Not scored" : `Score ${lead.score}`}>
+                  {lead.score ?? "—"}
+                  <span>fit</span>
+                </div>
               </div>
             </Link>
           );
