@@ -40,6 +40,7 @@ Status values: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`.
 | P04 | DONE | Installable responsive web, honest demo subscription/voice usage, tenant-scoped rule-based abuse signals, coverage matrix, focused browser checks, and release package pass |
 | B01 | DONE | Guided company URL/details/TXT-HTML-PDF-DOCX analysis → signed review → idempotent approved profile → workflow choice; Gemini/fallback, provenance, browser, and safety tests pass |
 | P05 | IN_PROGRESS | Record the final 3–5 minute demo, review it for sensitive data and claim accuracy, then submit only with explicit user authorization |
+| P12 | DONE | Implement unified Hirevia design system Admin login portal, credentials validation, restricted registration, and warm paper aesthetic |
 | P06 | DONE | Default localhost follows the production-MVP journey; test-only controls are feature-flagged, sample data is honestly labelled, and all browser/code gates pass |
 | P07 | DONE | Futurrizon framed/JS-shell analysis succeeds with bounded same-site metadata fallback; legacy fixture content is hidden by default; desktop/mobile control-size and overflow audits pass |
 | P08 | DONE | Discovery and lead review require a confirmed profile; stale results are filtered by active profile/version and browser verification removed pre-onboarding Exa content |
