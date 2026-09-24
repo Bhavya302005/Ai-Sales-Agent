@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17' # Required for modern Android builds
+          java-version: '21' # Matching local development JDK
 
       - name: Install Monorepo Dependencies
         run: npm install -g pnpm && pnpm install
