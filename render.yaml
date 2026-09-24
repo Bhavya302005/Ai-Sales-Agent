@@ -1,0 +1,58 @@
+services:
+  - type: web
+    name: ai-sales-agent-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: apps/api
+
+    buildCommand: |
+      pip install --upgrade pip
+      pip install hatchling
+      pip install -e ../../packages/domain
+      pip install -e "."
+      npm install -g mcporter
+
+    startCommand: |
+      export PATH="/opt/fnm:$PATH"
+      eval "$(fnm env)" 2>/dev/null || true
+      alembic upgrade head
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: DATABASE_URL
+        sync: false          # set in Render dashboard — uses Supabase
+      - key: SECRET_KEY
+        generateValue: true
+      - key: EXA_API_KEY
+        sync: false
+      - key: EXA_DISCOVERY_MODE
+        value: mcp
+      - key: DISCOVERY_MODE
+        value: live
+      - key: SOURCE_ALLOWED_HOSTS
+        value: "linkedin.com,reliefweb.int,zoominfo.com,rocketreach.co,whitepages.com,truepeoplesearch.com,clutch.co,manta.com,apollo.io,signalhire.com,hunter.io,clearbit.com"
+      - key: DIALOGUE_MODE
+        value: gemini
+      - key: VOICE_TRANSPORT
+        value: omnidim
+      - key: OMNIDIM_API_KEY
+        sync: false
+      - key: OMNIDIM_AGENT_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SIGNALWIRE_PROJECT_ID
+        sync: false
+      - key: SIGNALWIRE_API_TOKEN
+        sync: false
+      - key: SIGNALWIRE_SPACE
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "https://ai-sales-agent.vercel.app,http://localhost:3000"

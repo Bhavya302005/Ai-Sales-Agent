@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SignalPath</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #07100d;
+        color: #f5f7f2;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        text-align: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      h1 { font-size: 1.25rem; margin: 16px 0 8px; }
+      p { color: #b9c2bc; margin: 0 0 24px; line-height: 1.5; }
+      button {
+        background: #79f2b0;
+        color: #07100d;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 28px;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg width="72" height="72" viewBox="0 0 512 512" aria-hidden="true">
+        <rect width="512" height="512" rx="112" fill="#07100d" stroke="#1d2a25" stroke-width="8"/>
+        <path d="M116 352V160h90c74 0 116 34 116 94s-42 98-116 98h-90Zm62-54h30c31 0 51-15 51-44s-20-41-51-41h-30v85Z" fill="#f5f7f2"/>
+        <path d="M302 352c0-52 42-94 94-94v62c-18 0-32 14-32 32h-62Z" fill="#79f2b0"/>
+        <circle cx="396" cy="164" r="36" fill="#79f2b0"/>
+      </svg>
+      <h1>Can't reach SignalPath</h1>
+      <p>Check your internet connection and try again.</p>
+      <button type="button" onclick="history.length > 1 ? history.back() : location.reload()">Retry</button>
+    </main>
+  </body>
+</html>

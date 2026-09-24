@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: sales_agent
+          POSTGRES_USER: sales_agent
+          POSTGRES_PASSWORD: sales_agent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sales_agent -d sales_agent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://sales_agent:sales_agent@localhost:5432/sales_agent
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/check_secrets.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e packages/domain -e "apps/api[dev]"
+      - run: pip install pip-audit==2.9.0
+      - run: pip-audit --local --skip-editable --strict
+      - run: ruff check apps/api packages/domain database
+      - run: mypy --config-file packages/domain/pyproject.toml packages/domain/src
+      - run: mypy --config-file apps/api/pyproject.toml apps/api/app database/seeds/demo.py
+      - run: alembic -c apps/api/alembic.ini upgrade head
+      - run: python -m database.seeds.demo
+      - run: alembic -c apps/api/alembic.ini check
+      - run: pytest -c apps/api/pyproject.toml packages/domain/tests apps/api/tests
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level high
+      - run: pnpm --filter @sales-agent/web lint
+      - run: pnpm --filter @sales-agent/web typecheck
+      - run: pnpm --filter @sales-agent/web test
+      - run: pnpm --filter @sales-agent/web build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e packages/domain -e "apps/api[dev]"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sales-agent/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @sales-agent/web test:e2e
+        env:
+          E2E_PYTHON: python
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

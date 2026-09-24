@@ -1,0 +1,16 @@
+{
+  "name": "ai-sales-agent",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "dev:web": "pnpm --filter @sales-agent/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "mobile:sync": "npm --prefix apps/mobile run sync",
+    "mobile:android": "npm --prefix apps/mobile run open:android",
+    "mobile:ios": "npm --prefix apps/mobile run open:ios"
+  }
+}

@@ -1,0 +1,44 @@
+.DS_Store
+.env
+.env.local
+.next/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+.coverage
+htmlcov/
+tmp/
+artifacts/
+
+# Generated demo recordings and submission bundles stay local. They may contain
+# participant audio, screen captures, or provider identifiers.
+*.webm
+*.mp4
+*.tsbuildinfo
+
+# Separate research workspace; contains mutable source captures and personal
+# artifacts and is not part of this product repository.
+job_scraper/
+
+# Scraper research outputs are large, mutable and may contain contact data.
+job_scraper/**/*.csv
+job_scraper/**/*.xlsx
+job_scraper/**/*.json
+job_scraper/*.csv
+job_scraper/*.xlsx
+job_scraper/*.json
+
+# Local demo/test lead files with contact numbers
+demo_leads.csv
+test_lead.csv
+cookies.txt

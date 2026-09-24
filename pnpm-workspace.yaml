@@ -1,0 +1,13 @@
+packages:
+  - "apps/web"
+  - "packages/*"
+
+overrides:
+  baseline-browser-mapping: 2.11.23
+  browserslist: 4.28.7
+  electron-to-chromium: 1.5.428
+  esbuild: 0.28.1
+
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true

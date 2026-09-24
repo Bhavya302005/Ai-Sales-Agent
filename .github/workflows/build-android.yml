@@ -1,0 +1,52 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger from the Actions tab
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm' # Using npm since package-lock.json is in apps/mobile
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17' # Required for modern Android builds
+
+      - name: Install Monorepo Dependencies
+        run: npm install -g pnpm && pnpm install
+
+      - name: Build Web App
+        run: pnpm run build
+
+      - name: Install Mobile Dependencies
+        working-directory: ./apps/mobile
+        run: npm install
+
+      - name: Sync Web Assets to Capacitor
+        working-directory: ./apps/mobile
+        run: npx cap sync android
+
+      - name: Build APK with Gradle
+        working-directory: ./apps/mobile/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug.apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk

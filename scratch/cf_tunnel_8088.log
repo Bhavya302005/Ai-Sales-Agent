@@ -1,0 +1,43 @@
+2026-09-19T22:04:40Z INF Thank you for trying Cloudflare Tunnel. Doing so, without a Cloudflare account, is a quick way to experiment and try it out. However, be aware that these account-less Tunnels have no uptime guarantee, are subject to the Cloudflare Online Services Terms of Use (https://www.cloudflare.com/website-terms/), and Cloudflare reserves the right to investigate your use of Tunnels for violations of such terms. If you intend to use Tunnels in production you should use a pre-created named tunnel by following: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
+2026-09-19T22:04:40Z INF Requesting new quick Tunnel on trycloudflare.com...
+2026-09-19T22:04:46Z INF +--------------------------------------------------------------------------------------------+
+2026-09-19T22:04:46Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
+2026-09-19T22:04:46Z INF |  https://paso-bristol-christina-chargers.trycloudflare.com                                 |
+2026-09-19T22:04:46Z INF +--------------------------------------------------------------------------------------------+
+2026-09-19T22:04:46Z INF Cannot determine default configuration path. No file [config.yml config.yaml] in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]
+2026-09-19T22:04:46Z INF Version 2026.9.1 (Checksum 9a0b19f67dc7a3011bc6b972c7ce06a5fcea8784ac6bd599ffa382ea4aeb5a6e)
+2026-09-19T22:04:46Z INF GOOS: darwin, GOVersion: go1.26.2, GoArch: arm64
+2026-09-19T22:04:46Z INF Settings: map[ha-connections:1 protocol:quic url:http://localhost:8088]
+2026-09-19T22:04:46Z INF cloudflared will not automatically update when run from the shell. To enable auto-updates, run cloudflared as a service: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/configure-tunnels/local-management/as-a-service/
+2026-09-19T22:04:46Z INF Generated Connector ID: 2c4253fa-e9b0-49a8-b73a-cc17fb153dec
+2026-09-19T22:04:46Z INF Initial protocol quic
+2026-09-19T22:04:46Z INF ICMP proxy will use 192.168.31.187 as source for IPv4
+2026-09-19T22:04:46Z INF ICMP proxy will use fe80::90:2daf:5731:b0a2 in zone en0 as source for IPv6
+2026-09-19T22:04:46Z INF Created ICMP proxy listening on 192.168.31.187:0
+2026-09-19T22:04:46Z INF ICMP proxy will use 192.168.31.187 as source for IPv4
+2026-09-19T22:04:46Z INF ICMP proxy will use fe80::90:2daf:5731:b0a2 in zone en0 as source for IPv6
+2026-09-19T22:04:46Z INF Starting metrics server on 127.0.0.1:20242/metrics
+2026-09-19T22:04:46Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=2606:4700:a8::6
+2026-09-19T22:04:46Z INF Registered tunnel connection connIndex=0 connection=629bd7ae-7784-42c4-820f-f30d68ebc615 event=0 ip=2606:4700:a8::6 location=bom09 protocol=quic
+2026-09-19T22:04:46Z INF +-------------------------------------------------------------------------------------+
+2026-09-19T22:04:46Z INF |                               CONNECTIVITY PRE-CHECKS                               |
+2026-09-19T22:04:46Z INF +-------------------------------------------------------------------------------------+
+2026-09-19T22:04:46Z INF |  COMPONENT         TARGET                     STATUS  DETAILS                       |
+2026-09-19T22:04:46Z INF |  DNS Resolution    region1.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-09-19T22:04:46Z INF |  DNS Resolution    region2.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-09-19T22:04:46Z INF |  UDP Connectivity  region1.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-09-19T22:04:46Z INF |  UDP Connectivity  region2.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-09-19T22:04:46Z INF |  TCP Connectivity  region1.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-09-19T22:04:46Z INF |  TCP Connectivity  region2.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-09-19T22:04:46Z INF |  Cloudflare API    api.cloudflare.com:443     PASS    API is reachable              |
+2026-09-19T22:04:46Z INF |                                                                                     |
+2026-09-19T22:04:46Z INF |  SUMMARY: Environment is healthy. cloudflared will use 'quic' as primary protocol.  |
+2026-09-19T22:04:46Z INF +-------------------------------------------------------------------------------------+
+2026-09-19T22:04:46Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e status=pass target=region1.v2.argotunnel.com
+2026-09-19T22:04:46Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e status=pass target=region2.v2.argotunnel.com
+2026-09-19T22:04:46Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e status=pass target=region1.v2.argotunnel.com
+2026-09-19T22:04:46Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e status=pass target=region2.v2.argotunnel.com
+2026-09-19T22:04:46Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e status=pass target=region1.v2.argotunnel.com
+2026-09-19T22:04:46Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e status=pass target=region2.v2.argotunnel.com
+2026-09-19T22:04:46Z INF precheck component="Cloudflare API" details="API is reachable" run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e status=pass target=api.cloudflare.com:443
+2026-09-19T22:04:46Z INF precheck complete hard_fail=false run_id=7fa9c91b-776f-42e2-96a2-d7a7a1bd5d6e suggested_protocol=quic
