@@ -138,21 +138,24 @@ Specific Problems / Requirements We Solve:
 
 == STRICT EXCLUSIONS ==
 {chr(10).join(f"- {e}" for e in exclusions)}
+- HR, recruitment, job postings, careers pages, and job descriptions.
+- Posts looking for "joiners", "candidates", "employees", "staff", or "years of experience".
 - Aggregator and directory portals (Clutch, GoodFirms, G2, Yelp, ZoomInfo, DesignRush)
 - Individuals posting resumes, portfolios, or looking for jobs/employment
 - Agencies or service providers promoting or advertising their OWN capabilities
 - Listicles and generic blog roundups (e.g., "Top 10 software companies")
 
 == QUALIFICATION AND ACCURACY PROTOCOL ==
-1. BUYER VERIFICATION: The company_name MUST be the BUYING organization that needs the service. Never set company_name to a social media handle, an agency pitching services, or a blog site.
-2. BUYING INTENT: The lead must show verifiable commercial intent:
+1. BUYER VERIFICATION: The company_name MUST be the BUYING organization that needs to hire a B2B vendor/agency. Never set company_name to a social media handle, an agency pitching services, or a blog site.
+2. NO RECRUITMENT/HIRING: If the post mentions "years of experience", "immediate joiners", "salary", "hiring", or "full-time", it is a job post. REJECT IT IMMEDIATELY. We strictly only want B2B contracts, projects, and RFPs.
+3. BUYING INTENT: The lead must show verifiable commercial intent to outsource to a business/agency:
    - Active Request for Proposal (RFP), tender, or bid notice
    - Executive/Founder/Procurement post explicitly stating "looking for a vendor/partner/agency to help us build/migrate/audit..."
-   - Project posting on professional freelance/contract networks with verified enterprise budget
+   - Project posting on professional B2B contract networks with verified enterprise budget
    - Organizational initiative announcing a technology modernization or outsourcing project
-3. EVIDENCE PROVENANCE: The requirement and buying_intent_signal fields must contain factual, verifiable excerpts from the source URL.
-4. FIT SCORE: Rate 0-100 based strictly on industry match, geography match, and explicit budget/need alignment. Return only leads with fit_score >= 60.
-5. CONTACT GROUNDING: If an executive, founder, or project owner is mentioned in the post, capture their contact_name and contact_title. Otherwise leave as null. Do not invent fictitious contact details."""
+4. EVIDENCE PROVENANCE: The requirement and buying_intent_signal fields must contain factual, verifiable excerpts from the source URL.
+5. FIT SCORE: Rate 0-100 based strictly on industry match, geography match, and explicit budget/need alignment. Return only leads with fit_score >= 60.
+6. CONTACT GROUNDING: If an executive, founder, or project owner is mentioned in the post, capture their contact_name and contact_title. Otherwise leave as null. Do not invent fictitious contact details."""
 
     return prompt
 
@@ -171,10 +174,10 @@ def _build_query(product_version: Any) -> str:
 
     return (
         f"Find corporate buyers, enterprises, and funded startups in {industry_str} located in {geo_str} "
-        f"that have an active commercial need or are actively seeking an external agency, implementation partner, or vendor for: {primary_service}. "
+        f"that have an active commercial need or are actively seeking an external agency, implementation partner, or B2B vendor for: {primary_service}. "
         f"Related requirements to consider: {secondary_services}. "
-        f"Search executive LinkedIn posts, corporate procurement RFPs, verified client project bids, and company announcements. "
-        f"Strictly exclude agencies advertising their own services, directory sites, and individual job seekers. "
+        f"Search executive LinkedIn posts, corporate procurement RFPs, verified B2B client project bids, and company announcements. "
+        f"CRITICAL: Strictly exclude all job postings, HR recruitment, hiring for 'joiners' or 'candidates', directory sites, and agencies advertising their own services. We only want B2B outsourcing and vendor procurement. "
         f"Return verified company names, requirement details, source URLs, and buying intent rationale."
     )
 
