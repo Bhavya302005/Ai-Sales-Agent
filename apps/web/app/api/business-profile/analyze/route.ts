@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 
-const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:8000";
+const apiBaseUrl = (
+  process.env.API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:8000"
+).replace(/\/+$/, "");
 
 export async function POST(request: Request) {
   const token = (await cookies()).get("sales_agent_session")?.value;

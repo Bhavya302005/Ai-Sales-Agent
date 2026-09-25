@@ -6,14 +6,46 @@ import { redirect } from "next/navigation";
 type DevSession = { access_token: string; token_type: "bearer" };
 
 async function establishSession(targetDestination = "/onboarding") {
-  const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:8000";
-  const response = await fetch(`${apiBaseUrl}/api/v1/auth/dev-session`, {
-    method: "POST",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error("Authentication service is currently unavailable.");
+  const apiBaseUrl = (
+    process.env.API_BASE_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    "http://localhost:8000"
+  ).replace(/\/+$/, "");
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}/api/v1/auth/dev-session`, {
+      method: "POST",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (fetchErr: unknown) {
+    clearTimeout(timeoutId);
+    const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    console.error(`[auth] Cannot connect to API at ${apiBaseUrl}:`, msg);
+    throw new Error(
+      `Cannot connect to API at ${apiBaseUrl} (${msg}). Please verify your backend service is running and API_BASE_URL is correct.`
+    );
   }
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const errorBody = await response.json();
+      detail = errorBody.detail || errorBody.message || JSON.stringify(errorBody);
+    } catch {
+      detail = await response.text().catch(() => "");
+    }
+    console.error(`[auth] Authentication API responded with HTTP ${response.status}:`, detail);
+    throw new Error(
+      `Authentication service error (HTTP ${response.status}${detail ? `: ${detail}` : ""}).`
+    );
+  }
+
   const session = (await response.json()) as DevSession;
   (await cookies()).set("sales_agent_session", session.access_token, {
     httpOnly: true,
@@ -22,7 +54,6 @@ async function establishSession(targetDestination = "/onboarding") {
     path: "/",
     maxAge: 60 * 60 * 8,
   });
-  redirect(targetDestination);
 }
 
 const DEFAULT_ADMIN_EMAILS = [
@@ -68,8 +99,10 @@ export async function signInWithCredentials(formData: FormData) {
   }
 
   const destination = returnTo.startsWith("/") ? returnTo : "/onboarding";
+  let success = false;
   try {
     await establishSession(destination);
+    success = true;
   } catch (err: unknown) {
     if (
       err &&
@@ -79,7 +112,17 @@ export async function signInWithCredentials(formData: FormData) {
     ) {
       throw err;
     }
-    return { error: "Authentication service error. Please try again." };
+    console.error("[signInWithCredentials] Authentication error:", err);
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Authentication service error. Please try again.",
+    };
+  }
+
+  if (success) {
+    redirect(destination);
   }
 }
 

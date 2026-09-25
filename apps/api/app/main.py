@@ -58,6 +58,19 @@ async def _inline_booking_scheduler() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    try:
+        import sys
+        from pathlib import Path
+
+        repo_root = str(Path(__file__).resolve().parents[3])
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
+        from database.seeds.demo import seed_demo
+
+        await run_in_threadpool(seed_demo, settings.database_url)
+    except Exception as exc:
+        logger.warning("Database seed initialization skipped or failed: %s", exc)
+
     scheduler = (
         asyncio.create_task(_inline_booking_scheduler())
         if settings.booking_scheduler_mode == "inline"
