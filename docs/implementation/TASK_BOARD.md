@@ -50,3 +50,6 @@ Status values: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`.
 | P11 | DONE | Unify discovery into Leads page with Exa refresh, search/filters bar, clickable post URLs, and verified phone numbers for all discovered leads |
 | S01b | DONE | Subscription page: plan overview, live usage meters, pricing grid, billing section, nav integration |
 | C04 | DONE | Consent-gated Calendly link preparation, honest mock/live SMS adapters, signed booking tracking, suppression-safe callbacks, and exactly one eligibility-checked OmniDimension re-call; focused backend/browser and full backend suites pass |
+| D02 | DONE | Exa agent context is generated from each active approved profile; deterministic gates require source-backed buyer identity, external-provider intent, an open recent requirement, and fit >= 60; focused tests pass |
+| D03 | DONE | Agent and keyword discovery reject observed articles, showcases, profiles, recruitment, commentary and undated/stale results; Exa dates/authors are retained and 25 affected tests pass |
+| D04 | DONE | One active company profile is presented with Edit/Update; the analysis review block remains; profile save no longer auto-runs discovery and redirects to Leads for explicit refresh; focused API/UI/type/lint tests pass |

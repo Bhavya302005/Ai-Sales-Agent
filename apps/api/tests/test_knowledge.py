@@ -5,7 +5,7 @@ from pathlib import Path
 
 from database.seeds.demo import seed_demo
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token
@@ -13,7 +13,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.demo_ids import ORGANIZATION_ID, USER_ID
 from app.main import app
-from app.persistence.models import AuditLog, Base, Membership, ModelRun, Product
+from app.persistence.models import AuditLog, Base, Membership, ModelRun, OutboxEvent, Product
 
 
 @contextmanager
@@ -178,6 +178,7 @@ def test_business_profile_analysis_and_confirmation_are_reviewed_and_versioned(
             "workflow_mode": "leads_and_calling",
             "confirmed": True,
         }
+        outbox_count_before = session.scalar(select(func.count()).select_from(OutboxEvent))
         confirmed = client.post(
             "/api/v1/knowledge/business-profile/confirm",
             headers=headers,
@@ -191,6 +192,7 @@ def test_business_profile_analysis_and_confirmation_are_reviewed_and_versioned(
         assert confirmed.status_code == 201
         assert repeated.status_code == 201
         assert repeated.json()["id"] == confirmed.json()["id"]
+        assert session.scalar(select(func.count()).select_from(OutboxEvent)) == outbox_count_before
         body = confirmed.json()
         assert body["version"] == 2
         assert body["is_active"] is True

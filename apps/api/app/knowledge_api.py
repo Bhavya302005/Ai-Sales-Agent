@@ -21,7 +21,6 @@ from app.business_profile import (
 )
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.jobs.service import enqueue_once, process_event
 from app.knowledge_schemas import (
     ApprovalRequest,
     BusinessProfileAnalysisResponse,
@@ -114,7 +113,11 @@ def _version_response(
         profile_sources=[
             ProfileSource(
                 label=str(src.get("label", "Source")),
-                kind=src.get("kind", "document") if src.get("kind") in ("website", "document", "user_input") else "document",
+                kind=(
+                    src.get("kind", "document")
+                    if src.get("kind") in ("website", "document", "user_input")
+                    else "document"
+                ),
                 content_hash=str(src.get("content_hash", "0" * 64)),
                 excerpt=str(src.get("excerpt", "") or "Evidence source"),
             )
@@ -389,23 +392,6 @@ def confirm_profile(
     )
     session.commit()
     session.refresh(version)
-    # ── Auto-trigger live discovery for the freshly approved product version ──
-    # Enqueue idempotently so re-confirming the profile doesn't double-fire.
-    try:
-        queued = enqueue_once(
-            session,
-            organization_id=auth.organization_id,
-            actor_id=auth.user_id,
-            route=f"discovery:auto:{version.id}",
-            idempotency_key=f"auto-discover-{version.id}",
-            event_type="lead.discovery_requested.v1",
-            aggregate_type="product_version",
-            aggregate_id=version.id,
-            payload_ref=f"product_version:{version.id}",
-        )
-        process_event(session, queued.event.event_id)
-    except Exception:  # noqa: BLE001 — discovery is best-effort, never block profile save
-        pass
     return _version_response(version, product.active_version_id)
 
 

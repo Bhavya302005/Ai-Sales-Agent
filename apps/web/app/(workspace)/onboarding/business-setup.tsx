@@ -22,7 +22,8 @@ export function BusinessSetup({ productName, active }: Props) {
   const [businessDetails, setBusinessDetails] = useState(active?.description ?? "");
   const [services, setServices] = useState(active ? lines(active.services) : "");
   const [confirming, setConfirming] = useState(false);
-  const [confirmStage, setConfirmStage] = useState("Locking approved profile & ICP rules…");
+  const [confirmStage, setConfirmStage] = useState("Saving approved profile & ICP rules…");
+  const [isEditing, setIsEditing] = useState(!active?.is_callable);
   const [draftReady, setDraftReady] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; size: string; file: File }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +38,16 @@ export function BusinessSetup({ productName, active }: Props) {
       el.focus();
       el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+  }
+
+  function beginEditing() {
+    setIsEditing(true);
+    window.setTimeout(() => {
+      const editor = document.getElementById("business-profile-editor");
+      if (typeof editor?.scrollIntoView === "function") {
+        editor.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 0);
   }
 
   function triggerFileReplace() {
@@ -129,11 +140,9 @@ export function BusinessSetup({ productName, active }: Props) {
   useEffect(() => {
     if (!confirming) return;
     const stages = [
-      "Locking approved business profile & ICP rules…",
-      "Triggering Exa Lead Finder for active buyer requirements…",
-      "Scanning LinkedIn, RFP boards, and tender portals with Exa…",
-      "Mining buyer-intent opportunities & decision-maker signals…",
-      "Ingesting opportunities and loading your workspace…",
+      "Saving approved business profile & ICP rules…",
+      "Activating the updated company profile…",
+      "Preparing the Leads workspace…",
     ];
     let idx = 0;
     const interval = window.setInterval(() => {
@@ -230,11 +239,11 @@ export function BusinessSetup({ productName, active }: Props) {
             </p>
           </div>
           <div className="active-profile-quick-actions">
-            <Link className="primary-button" href="/leads?provider=live">
-              View matching leads →
-            </Link>
-            <Link className="secondary-button" href="/campaigns">
-              Manage campaigns
+            <button className="secondary-button" type="button" onClick={beginEditing}>
+              Edit profile
+            </button>
+            <Link className="primary-button" href="/leads">
+              Refresh leads →
             </Link>
           </div>
         </section>
@@ -246,7 +255,7 @@ export function BusinessSetup({ productName, active }: Props) {
         <li><span>3</span>Choose your workflow</li>
       </ol>
 
-      <section className="detail-panel setup-intake">
+      {isEditing ? <section className="detail-panel setup-intake" id="business-profile-editor">
         <div className="section-heading">
           <div>
             <p className="kicker">
@@ -452,7 +461,7 @@ export function BusinessSetup({ productName, active }: Props) {
             </button>
           </div>
         </form>
-      </section>
+      </section> : null}
 
       {analysis ? (
         <section className="detail-panel setup-review">
@@ -462,7 +471,7 @@ export function BusinessSetup({ productName, active }: Props) {
             action={confirmBusinessProfile}
             onSubmit={() => {
               setConfirming(true);
-              setConfirmStage("Locking approved profile & ICP rules…");
+              setConfirmStage("Saving approved profile & ICP rules…");
             }}
             className="knowledge-form"
           >
@@ -492,9 +501,17 @@ export function BusinessSetup({ productName, active }: Props) {
             </fieldset>
             <label className="wide-field confirmation-check"><input name="confirmed" type="checkbox" required />I reviewed this profile and approve it for lead matching and AI call preparation.</label>
             <div className="wide-field form-submit-row">
-              <p>This creates an approved, versioned profile. You can create a new version later.</p>
+              <p>
+                {active?.is_callable
+                  ? "This updates the company profile used for future lead matching and calls."
+                  : "This saves the company profile used for future lead matching and calls."}
+              </p>
               <button className="primary-button" disabled={confirming} type="submit">
-                {confirming ? "Searching opportunities with Exa…" : "Confirm profile and continue"}
+                {confirming
+                  ? "Saving profile…"
+                  : active?.is_callable
+                    ? "Update profile"
+                    : "Save profile and continue"}
               </button>
             </div>
           </form>
@@ -514,8 +531,8 @@ export function BusinessSetup({ productName, active }: Props) {
                 </svg>
               </div>
             </div>
-            <span className="discovery-eyebrow">AI Opportunity Discovery</span>
-            <h3 className="discovery-title">Exa Lead Finder Active</h3>
+            <span className="discovery-eyebrow">Business profile</span>
+            <h3 className="discovery-title">Saving your company profile</h3>
             <p className="discovery-stage-text">{confirmStage}</p>
             <div className="discovery-progress-bar">
               <div className="discovery-progress-indicator" />
@@ -523,14 +540,13 @@ export function BusinessSetup({ productName, active }: Props) {
             <div className="discovery-badges">
               <span className="source-pill active">
                 <span className="pill-dot" />
-                Exa Neural Search
+                Approved profile
               </span>
-              <span className="source-pill">LinkedIn Intent</span>
-              <span className="source-pill">Public RFPs</span>
-              <span className="source-pill">Contact Enrichment</span>
+              <span className="source-pill">ICP rules</span>
+              <span className="source-pill">Sales guardrails</span>
             </div>
             <p className="discovery-subtext">
-              Exa is searching live market sources for buyer intent matching your verified ICP. Your workspace will open automatically as soon as leads are loaded.
+              Your Leads workspace will open next. Use its Refresh leads button whenever you want to run Exa discovery with this profile.
             </p>
           </div>
         </div>

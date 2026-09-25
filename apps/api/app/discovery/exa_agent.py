@@ -16,16 +16,15 @@ The system prompt is fully dynamic — built from the product version's:
   • Qualification signals
 """
 
+# ruff: noqa: E501 -- prompt/schema prose remains readable as complete instructions.
+
 from __future__ import annotations
 
 import json
 import os
-import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from datetime import datetime
-
-import httpx
 
 # ── Load .env ─────────────────────────────────────────────────────────────────
 _ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
@@ -64,29 +63,58 @@ LEAD_OUTPUT_SCHEMA: dict[str, Any] = {
                     "company_size": {"type": "string"},
                     "requirement": {"type": "string"},
                     "buying_intent_signal": {"type": "string"},
+                    "buyer_evidence": {
+                        "type": "string",
+                        "description": "Source-backed evidence that the named company is the buyer/requester, not the service provider.",
+                    },
+                    "external_provider_evidence": {
+                        "type": "string",
+                        "description": "Source-backed evidence that the buyer is asking for an external vendor, agency, consultant, partner, proposal, or bid.",
+                    },
+                    "lead_role": {"type": "string", "enum": ["buyer", "provider", "unclear"]},
+                    "requirement_status": {"type": "string", "enum": ["open", "unknown", "closed"]},
+                    "external_provider_requested": {"type": "boolean"},
                     "source_url": {"type": "string"},
                     "published_date": {
                         "type": "string",
-                        "description": "ISO 8601 format date (YYYY-MM-DD) when this lead or post was originally published. Crucial for recency check."
+                        "description": "ISO 8601 format date (YYYY-MM-DD) when this lead or post was originally published. Crucial for recency check.",
                     },
                     "opportunity_type": {
                         "type": "string",
-                        "enum": ["direct_requirement", "project_contract", "tender", "rfp", "hiring_signal", "weak_signal"]
+                        "enum": [
+                            "direct_requirement",
+                            "project_contract",
+                            "tender",
+                            "rfp",
+                            "hiring_signal",
+                            "weak_signal",
+                        ],
                     },
-                    "urgency": {
-                        "type": "string",
-                        "enum": ["high", "medium", "low", "unknown"]
-                    },
+                    "urgency": {"type": "string", "enum": ["high", "medium", "low", "unknown"]},
                     "fit_score": {"type": "integer", "minimum": 0, "maximum": 100},
-                    "fit_reason": {"type": "string"}
+                    "fit_reason": {"type": "string"},
                 },
-                "required": ["company_name", "requirement", "buying_intent_signal", "source_url", "opportunity_type", "fit_score", "fit_reason"]
-            }
+                "required": [
+                    "company_name",
+                    "requirement",
+                    "buying_intent_signal",
+                    "buyer_evidence",
+                    "external_provider_evidence",
+                    "lead_role",
+                    "requirement_status",
+                    "external_provider_requested",
+                    "source_url",
+                    "published_date",
+                    "opportunity_type",
+                    "fit_score",
+                    "fit_reason",
+                ],
+            },
         },
         "total_searched": {"type": "integer"},
-        "search_summary": {"type": "string"}
+        "search_summary": {"type": "string"},
     },
-    "required": ["leads", "total_searched", "search_summary"]
+    "required": ["leads", "total_searched", "search_summary"],
 }
 
 
@@ -119,27 +147,29 @@ def _build_system_prompt(product_version: Any) -> str:
 
     company_description = product_version.description or ""
 
-    prompt = f"""You are an elite B2B Enterprise Lead Intelligence Specialist and Procurement Opportunity Scout.
-Your sole mission is to identify real, verified companies that are actively seeking external vendors, partners, or consulting agencies to solve their commercial needs.
+    prompt = f"""You are a conservative B2B buyer-intent researcher.
+Your sole mission is to identify real organizations with a current, explicit request to BUY or OUTSOURCE work to an external provider whose capabilities match the approved client profile below.
+
+The client profile is authoritative and changes for every workspace. Derive the target services, industries, organization types, geographies, and exclusions only from this profile. Do not assume that examples or defaults from another client apply.
 
 == CLIENT PROFILE (THE SOLUTION PROVIDER) ==
-Company: {facts.get('_company_name', 'Solution Provider')}
+Company: {facts.get("_company_name", "Solution Provider")}
 Website: {company_url}
 Headquarters: {location}
 Technology Ecosystem: {ecosystem}
 Core Services Offered:
-{chr(10).join(f"- {s}" for s in services)}
+{chr(10).join(f"- {s}" for s in services) if services else "- Not specified; do not infer capabilities"}
 Company Overview: {company_description}
 {f"Compliance & Certifications: {compliance}" if compliance else ""}
 {f"Website Excerpt: {website_excerpt}" if website_excerpt else ""}
 {f"Sales Overview: {sales_doc_excerpt}" if sales_doc_excerpt else ""}
 
 == TARGET IDEAL CUSTOMER PROFILE (ICP) ==
-Target Industries: {", ".join(industries) if industries else "Technology, Finance, Healthcare, Manufacturing, Retail"}
-Target Geographies: {", ".join(geographies) if geographies else "India, North America, Global"}
-Target Organization Size: {", ".join(target_customers) if target_customers else "Growth companies, Mid-Market, and Enterprises (50 to 5000+ employees)"}
+Target Industries: {", ".join(industries) if industries else "Not specified; do not assume"}
+Target Geographies: {", ".join(geographies) if geographies else "Not specified; do not assume"}
+Target Organization Size: {", ".join(target_customers) if target_customers else "Not specified; do not assume"}
 Specific Problems / Requirements We Solve:
-{chr(10).join(f"- {n}" for n in needs)}
+{chr(10).join(f"- {n}" for n in needs) if needs else "- Not specified; use only approved services above"}
 
 == STRICT EXCLUSIONS ==
 {chr(10).join(f"- {e}" for e in exclusions)}
@@ -154,6 +184,24 @@ Specific Problems / Requirements We Solve:
 You MUST NOT return our competitors! If a company offers the same or similar services as our Core Services, they are a competitor, NOT a lead.
 We are looking for BUYERS who need these services, not PROVIDERS who offer them.
 
+== WHAT COUNTS AS A LEAD ==
+A result is a lead only when the source itself proves all of the following:
+1. The named organization is the prospective buyer/requester.
+2. It has a concrete requirement matching this client's approved services and ICP.
+3. It explicitly seeks an EXTERNAL vendor, agency, consultant, implementation partner, proposal, tender response, or comparable business provider.
+4. The requirement is recent and still open/current.
+
+Reject provider marketing, portfolio posts, case studies, completed-project announcements, tutorials, thought leadership, generic topic discussion, directories, recommendation articles, and internal implementation updates. A person or company saying it performs, completed, launched, built, migrated, implemented, or offers the work is not a lead unless the same source explicitly asks an external provider for a separate current requirement.
+
+Observed false-positive patterns that must be rejected:
+- Educational or community articles whose title starts with or implies "Building", "How to", or a technology tutorial.
+- Provider posts saying "we built", "I built", "we deliver", "we help", "our services", "our integration stack", or announcing a partnership/product/capability.
+- Consultancies, agencies, freelancers, architects, and specialists describing what they offer or have delivered.
+- Personal profile, resume, biography, employee-experience, or Exa library/person pages.
+- General questions, opinions, trend commentary, or pain-point content that does not ask an external provider to respond.
+- Staffing posts for a developer, analyst, specialist, consultant, contractor, candidate, or employee. The word "contract" alone never proves a B2B project.
+- Freelancer community/blog pages. Only an original project/request page can qualify.
+
 == QUALIFICATION AND ACCURACY PROTOCOL ==
 1. BUYER VERIFICATION: The company_name MUST be the BUYING organization that needs to hire a B2B vendor/agency. Never set company_name to a social media handle, an agency pitching services, or a blog site.
 2. NO RECRUITMENT/HIRING: If the post mentions "years of experience", "immediate joiners", "salary", "hiring", or "full-time", it is a job post. REJECT IT IMMEDIATELY. We strictly only want B2B contracts, projects, and RFPs.
@@ -162,10 +210,12 @@ We are looking for BUYERS who need these services, not PROVIDERS who offer them.
    - Executive/Founder/Procurement post explicitly stating "looking for a vendor/partner/agency to help us build/migrate/audit..."
    - Project posting on professional B2B contract networks with verified enterprise budget
    - Organizational initiative announcing a technology modernization or outsourcing project
-4. EVIDENCE PROVENANCE: The requirement and buying_intent_signal fields must contain factual, verifiable excerpts from the source URL.
-5. FIT SCORE: Rate 0-100 based strictly on industry match, geography match, and explicit budget/need alignment. Return only leads with fit_score >= 60.
+4. EVIDENCE PROVENANCE: requirement, buying_intent_signal, buyer_evidence, and external_provider_evidence must be supported by the requirement source URL. The source_url must be the exact post, RFP, tender, or request page—not a company homepage, provider page, search page, or inferred profile.
+5. FIT SCORE: Rate 0-100 based strictly on the approved profile's service/need, industry, geography, organization, explicit intent, and recency. Return only leads with fit_score >= 60.
 6. CONTACT GROUNDING: If an executive, founder, or project owner is mentioned in the post, capture their contact_name and contact_title. Otherwise leave as null. Do not invent fictitious contact details.
-7. RECENCY: You must only return leads and opportunities posted within the last 14 days. Reject any posts or RFPs older than 14 days, as they are no longer active commercial needs."""
+7. RECENCY: You must only return leads and opportunities posted within the last 14 days. Reject missing, unverifiable, future, older, completed, awarded, cancelled, or closed dates/requirements.
+8. UNCERTAINTY: When buyer identity, outsourcing intent, fit, source evidence, publication date, or open status is unclear, reject the result. Do not fill gaps with assumptions.
+9. OUTPUT LABELS: Set lead_role='buyer', external_provider_requested=true, and requirement_status='open' only when the source proves those claims. Provider or unclear results must not be returned."""
 
     return prompt
 
@@ -177,19 +227,64 @@ def _build_query(product_version: Any) -> str:
     industries = icp.get("industries", [])
     geographies = icp.get("geographies", [])
 
-    primary_service = needs[0] if needs else product_version.description[:100]
-    secondary_services = ", ".join(needs[1:4]) if len(needs) > 1 else primary_service
-    industry_str = " or ".join(industries[:3]) if industries else "enterprise"
-    geo_str = " or ".join(geographies[:2]) if geographies else "India"
+    facts = product_version.facts if isinstance(product_version.facts, dict) else {}
+    raw_services = facts.get("_services", [])
+    services = (
+        [str(value).strip() for value in raw_services if str(value).strip()]
+        if isinstance(raw_services, list)
+        else []
+    )
+    requirements = needs or services or [product_version.description[:200]]
+    requirement_str = "; ".join(requirements[:8])
+    industry_str = (
+        " or ".join(industries[:3]) if industries else "the profile's specified industries"
+    )
+    geo_str = " or ".join(geographies[:2]) if geographies else "the profile's specified geographies"
 
     return (
-        f'Search for recent explicit B2B buying signals using exact phrases like: "looking for an agency to help with {primary_service}", '
-        f'"need recommendations for a {primary_service} vendor", "Request for Proposal for {primary_service}", or "seeking a partner for {primary_service}". '
-        f'Target companies in {industry_str} located in {geo_str}. '
-        f'CRITICAL RULE: You MUST NOT return companies that provide {primary_service} or similar services. If they offer it, they are our competitor. REJECT THEM. '
-        f'CRITICAL RULE 2: Exclude all job postings, HR recruitment, hiring for "joiners", and directory sites. '
-        f'We ONLY want to find corporate buyers and enterprises that are ASKING to BUY or OUTSOURCE {primary_service}.'
+        f"Search for source-backed, currently open B2B requests related to these approved customer needs/services: {requirement_str}. "
+        f"Look for buyers explicitly requesting an external vendor, agency, consultant, implementation partner, proposal, tender response, or bid. "
+        f"Target companies in {industry_str} located in {geo_str}. "
+        f"Use the active profile only; do not substitute another industry, geography, or service. "
+        f"Reject companies promoting, providing, showcasing, discussing, or announcing completed work in those areas; they are providers or non-buyers. "
+        f"Reject job posts, recruitment, directories, listicles, case studies, portfolios, tutorials, internal projects, completed/closed requests, and pages without a verifiable publication date. "
+        f"Return only the original request page where the named buyer explicitly asks to buy or outsource one of: {requirement_str}."
     )
+
+
+def _is_qualified_buyer_lead(lead: dict[str, Any], *, now: datetime | None = None) -> bool:
+    """Apply deterministic gates after the model response; unknowns never pass as leads."""
+    if lead.get("lead_role") != "buyer":
+        return False
+    if lead.get("external_provider_requested") is not True:
+        return False
+    if lead.get("requirement_status") != "open":
+        return False
+    if lead.get("opportunity_type") not in {"direct_requirement", "project_contract", "tender"}:
+        return False
+    if not all(
+        str(lead.get(field, "")).strip()
+        for field in (
+            "company_name",
+            "requirement",
+            "buying_intent_signal",
+            "buyer_evidence",
+            "external_provider_evidence",
+            "source_url",
+        )
+    ):
+        return False
+    if not str(lead["source_url"]).startswith("https://"):
+        return False
+    try:
+        score = int(lead.get("fit_score", 0))
+        published = datetime.fromisoformat(str(lead["published_date"]).replace("Z", "+00:00"))
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=UTC)
+    except (TypeError, ValueError):
+        return False
+    reference_time = now or datetime.now(UTC)
+    return score >= 60 and reference_time - timedelta(days=14) <= published <= reference_time
 
 
 def run_exa_agent(
@@ -220,26 +315,26 @@ def run_exa_agent(
             system_prompt=system_prompt,
             output_schema=LEAD_OUTPUT_SCHEMA,
         )
-        
+
         # Step 2: Poll until finished (using SDK built-in timeout_ms)
         completed_run = exa.agent.runs.poll_until_finished(
             run.id, timeout_ms=int(_AGENT_TIMEOUT * 1000)
         )
-        
+
         if completed_run.status == "completed" and completed_run.output:
             structured = completed_run.output.structured
             if isinstance(structured, str):
                 structured = json.loads(structured)
-                
+
             leads = structured.get("leads", []) if isinstance(structured, dict) else []
             qualified = [
-                lead for lead in leads
-                if isinstance(lead, dict) and lead.get("fit_score", 0) >= 50
+                lead for lead in leads if isinstance(lead, dict) and _is_qualified_buyer_lead(lead)
             ]
             return qualified[:max_leads]
-            
+
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning("Exa agent run failed: %s", exc)
 
     return []
@@ -264,11 +359,19 @@ def exa_agent_leads_to_discovery_items(
 
         parts = []
         for label, key in [
-            ("Company", "company_name"), ("Contact", "contact_name"),
-            ("Title", "contact_title"), ("Requirement", "requirement"),
-            ("Buying Signal", "buying_intent_signal"), ("Location", "geography"),
-            ("Industry", "industry"), ("Company Size", "company_size"),
-            ("Fit", "fit_reason"), ("Email", "email"), ("Phone", "phone"),
+            ("Company", "company_name"),
+            ("Contact", "contact_name"),
+            ("Title", "contact_title"),
+            ("Requirement", "requirement"),
+            ("Buying Signal", "buying_intent_signal"),
+            ("Location", "geography"),
+            ("Buyer Evidence", "buyer_evidence"),
+            ("External Provider Evidence", "external_provider_evidence"),
+            ("Industry", "industry"),
+            ("Company Size", "company_size"),
+            ("Fit", "fit_reason"),
+            ("Email", "email"),
+            ("Phone", "phone"),
         ]:
             val = lead.get(key)
             if val:
@@ -297,7 +400,9 @@ def exa_agent_leads_to_discovery_items(
                     "Public web profile or post found by Exa Agent; "
                     "original URL retained and no private contact data stored."
                 ),
-                published_at=datetime.fromisoformat(lead["published_date"].replace("Z", "+00:00")) if lead.get("published_date") else None,
+                published_at=datetime.fromisoformat(lead["published_date"].replace("Z", "+00:00"))
+                if lead.get("published_date")
+                else None,
                 title=lead.get("company_name", "Lead identified by Exa Agent"),
                 company=lead.get("company_name"),
                 location=lead.get("geography"),

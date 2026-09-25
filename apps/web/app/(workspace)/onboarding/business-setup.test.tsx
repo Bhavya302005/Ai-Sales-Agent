@@ -67,7 +67,7 @@ describe("BusinessSetup", () => {
     expect(screen.getByText("AI generated")).toBeVisible();
     expect(screen.getByText("Find leads and call")).toBeVisible();
     expect(screen.getByText("Call my own leads")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Confirm profile and continue" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save profile and continue" })).toBeVisible();
     expect(screen.getAllByLabelText("Company name")[0]).toHaveValue("Northstar");
     expect(screen.getByLabelText("Company website")).toHaveValue("https://northstar.example");
     expect(screen.getByLabelText("Business description")).toHaveValue(
@@ -76,6 +76,75 @@ describe("BusinessSetup", () => {
     expect(screen.getAllByLabelText("Products or services — one per line")[0]).toHaveValue(
       "SharePoint migration\nPower Platform automation",
     );
+  });
+
+  it("presents one active profile with edit, update, and leads refresh actions", async () => {
+    const active = {
+      id: "profile-version-2",
+      version: 2,
+      description: "We help companies modernize document collaboration securely.",
+      icp: {
+        geographies: ["India"],
+        industries: ["Professional services"],
+        needs: ["Document modernization"],
+      },
+      exclusions: ["Unverified commitments"],
+      facts: { services: "SharePoint migration" },
+      pricing_policy: "Route every pricing question to a human owner.",
+      qualification_questions: ["What problem are you solving?"],
+      handoff_conditions: ["The prospect asks for pricing."],
+      approved_at: "2026-09-25T10:00:00Z",
+      approved_by: "owner-id",
+      is_active: true,
+      is_callable: true,
+      created_at: "2026-09-25T10:00:00Z",
+      company_url: "https://northstar.example",
+      services: ["SharePoint migration"],
+      target_customers: ["Mid-market companies"],
+      analysis_method: "gemini",
+      profile_source_count: 1,
+      profile_sources: [],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          company_name: "Northstar",
+          company_url: "https://northstar.example",
+          description: active.description,
+          services: active.services,
+          icp: active.icp,
+          target_customers: active.target_customers,
+          facts: active.facts,
+          exclusions: active.exclusions,
+          pricing_policy: active.pricing_policy,
+          qualification_questions: active.qualification_questions,
+          handoff_conditions: active.handoff_conditions,
+          sources: [],
+          analysis_method: "gemini",
+          warning: null,
+          analysis_token: "synthetic-signed-analysis-token",
+        }),
+      }),
+    );
+    render(<BusinessSetup productName="Northstar" active={active} />);
+
+    expect(screen.getByRole("link", { name: "Refresh leads →" })).toHaveAttribute(
+      "href",
+      "/leads",
+    );
+    expect(screen.queryByRole("heading", { name: "What does your company sell?" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));
+    expect(screen.getByRole("heading", { name: "What does your company sell?" })).toBeVisible();
+    fireEvent.submit(screen.getByRole("button", { name: "Analyze my business" }).closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Here is what we understood" })).toBeVisible();
+    });
+    expect(screen.getByRole("button", { name: "Update profile" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "What does your company sell?" })).toBeVisible();
   });
 
   it("preserves entered evidence when analysis fails", async () => {

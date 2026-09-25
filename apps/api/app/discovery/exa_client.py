@@ -79,9 +79,16 @@ def _exa_api_search(
     for result in data.get("results", []):
         title = result.get("title", "")
         url = result.get("url", "")
+        published = result.get("publishedDate", "")
+        author = result.get("author", "")
         text = result.get("text", "")
         highlights = " ".join(result.get("highlights", []))
-        parts.append(f"Title: {title}\nURL: {url}\n{text}\n{highlights}")
+        header = [f"Title: {title}", f"URL: {url}"]
+        if published:
+            header.append(f"Published: {published}")
+        if author:
+            header.append(f"Author: {author}")
+        parts.append("\n".join([*header, text, highlights]))
 
     return "\n---\n".join(parts)
 

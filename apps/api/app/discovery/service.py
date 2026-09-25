@@ -68,8 +68,8 @@ def load_demo_snapshot(repository_root: Path | None = None) -> list[DiscoveryIte
 def build_requirement_queries(product_version: ProductVersion) -> list[tuple[str, list[str]]]:
     """Return a list of (query_string, include_domains) tuples for buyer-intent discovery.
 
-    Generates 22 multi-platform queries from the product version's ICP (needs,
-    industries, geographies).  Each tuple contains the raw search string and an
+    Generates high-precision queries from the product version's ICP (needs,
+    industries, geographies). Each tuple contains the raw search string and an
     optional domain-restriction list understood by the Exa MCP tool.
     """
     icp = product_version.icp if isinstance(product_version.icp, dict) else {}
@@ -100,7 +100,22 @@ def build_requirement_queries(product_version: ProductVersion) -> list[tuple[str
         )
         if part
     )
-    base_excl = ["we provide", "our services", "clutch.co", "goodfirms.co", "job seeker", "looking for a job", "resume"]
+    base_excl = [
+        "we provide",
+        "our services",
+        "we built",
+        "I built",
+        "case study",
+        "how to",
+        "community article",
+        "we are hiring",
+        "job opening",
+        "apply now",
+        "resume",
+        "clutch.co",
+        "goodfirms.co",
+        "exa.ai/library",
+    ]
     excl = " ".join(f'-"{e}"' for e in exclusions + base_excl)
 
     def q(query: str) -> str:
@@ -108,67 +123,69 @@ def build_requirement_queries(product_version: ProductVersion) -> list[tuple[str
         return " ".join(p for p in (query, icp_ctx, excl) if p)
 
     now = datetime.now(UTC)
-    this_month = now.strftime("%B %Y")
-    last_month = (now - timedelta(days=30)).strftime("%B %Y")
-    year = now.strftime("%Y")
+    since = (now - timedelta(days=14)).date().isoformat()
 
     LI: list[str] = ["linkedin.com"]
     TW: list[str] = ["twitter.com", "x.com"]
-    RD: list[str] = ["reddit.com"]
-    UP: list[str] = ["upwork.com"]
-    FL: list[str] = ["freelancer.com"]
-
     queries: list[tuple[str, list[str]]] = [
-        # ── LinkedIn exact buyer-intent ───────────────────────────────────
-        (q(f'site:linkedin.com/posts ("looking for" OR "seeking") '
-           f'("implementation partner" OR "trusted partner" OR "agency" OR "vendor") '
-           f'({svc_or}) "{this_month}"'), LI),
-        (q(f'site:linkedin.com/posts ("looking for" OR "seeking") '
-           f'("implementation partner" OR "trusted partner" OR "agency") '
-           f'({svc_or}) "{last_month}"'), LI),
-        (q(f'site:linkedin.com/posts ("DMs open" OR "referrals welcome" OR "comment below") '
-           f'({svc_or}) "{year}"'), LI),
-        (q(f'site:linkedin.com/posts ("recommend" OR "anyone know" OR "can anyone suggest") '
-           f'({svc_or}) partner OR agency "{year}"'), LI),
-        (q(f'site:linkedin.com/posts ("need help" OR "need to build" OR "need to migrate") '
-           f'({svc_or}) "{year}"'), LI),
-        (q(f'site:linkedin.com/posts ("hiring" OR "looking to hire") '
-           f'("agency" OR "consulting firm" OR "partner company") ({svc_or}) "{year}"'), LI),
-        # ── LinkedIn neural ───────────────────────────────────────────────
-        (f"A company posted in {this_month} on LinkedIn that they are looking for a "
-         f"{primary} implementation partner or agency to help with an upcoming project:", LI),
-        (f"In {last_month} a business posted on LinkedIn that they need an agency or "
-         f"consulting firm to help them with {primary}:", LI),
-        (f"Here is a {this_month} LinkedIn post from a company looking to hire a "
-         f"developer or agency to build or implement {primary}:", LI),
-        # ── Twitter / X ───────────────────────────────────────────────────
-        (q(f'site:x.com OR site:twitter.com ("recommend" OR "looking for") '
-           f'({svc_or}) ("agency" OR "partner" OR "vendor") "{this_month}" OR "{last_month}"'), TW),
-        (q(f'site:x.com OR site:twitter.com '
-           f'("need help" OR "looking for someone" OR "hiring") ({svc_or}) "{year}"'), TW),
-        # ── Reddit ────────────────────────────────────────────────────────
-        (q(f'site:reddit.com '
-           f'("looking for" OR "need a consultant" OR "recommend a partner" '
-           f'OR "vendor recommendation") ({svc_or}) "{year}"'), RD),
-        (q(f'site:reddit.com '
-           f'("best agency" OR "good MSP" OR "reliable vendor") ({svc_or}) "{year}"'), RD),
-        (q(f'site:reddit.com ("need help" OR "looking to hire") ({svc_or}) "{year}"'), RD),
-        # ── Upwork ────────────────────────────────────────────────────────
-        (q(f'site:upwork.com/jobs ({svc_or}) "{year}"'), UP),
-        (q(f'site:upwork.com ("We are looking for" OR "seeking") ({svc_or}) "{year}"'), UP),
-        # ── Freelancer ────────────────────────────────────────────────────
-        (q(f'site:freelancer.com/projects ({svc_or}) "{this_month}"'), FL),
-        (q(f'site:freelancer.com/projects ({svc_or}) "{last_month}"'), FL),
-        # ── RFP boards ───────────────────────────────────────────────────
-        (q(f'("request for proposal" OR "RFP" OR "tender") '
-           f'({svc_or}) "{this_month}" OR "{last_month}"'), []),
-        (q(f'("request for proposal" OR "RFP" OR "invitation to tender") '
-           f'({svc_or}) "{year}"'), []),
-        # ── General web ───────────────────────────────────────────────────
-        (q(f'("looking for" OR "seeking") ("implementation partner" OR "agency" OR "vendor") '
-           f'({svc_or}) "{this_month}"'), []),
-        (q(f'("need help with" OR "looking for help" OR "seeking expertise") '
-           f'({svc_or}) company OR business OR organization "{year}"'), []),
+        # Require both a requester phrase and an external-provider phrase.
+        (
+            q(
+                f'site:linkedin.com/posts ("looking for" OR "seeking") '
+                f'("implementation partner" OR "agency" OR "vendor" OR "consulting firm") '
+                f"({svc_or}) after:{since}"
+            ),
+            LI,
+        ),
+        (
+            q(
+                f'site:linkedin.com/posts ("recommend" OR "anyone know" OR "can anyone suggest") '
+                f'("vendor" OR "agency" OR "implementation partner") ({svc_or}) after:{since}'
+            ),
+            LI,
+        ),
+        (
+            q(
+                f'site:linkedin.com/posts ("request for proposal" OR "invitation to bid" OR RFP) '
+                f"({svc_or}) after:{since}"
+            ),
+            LI,
+        ),
+        (
+            f"Find an original LinkedIn post published after {since} by a buying "
+            f"organization explicitly requesting an external vendor, agency, consulting firm, "
+            f"or implementation partner for {primary}. Exclude providers describing their own "
+            "services, completed work, internal builds, personal profiles, and recruitment.",
+            LI,
+        ),
+        (
+            q(
+                f'site:x.com OR site:twitter.com ("recommend" OR "looking for") '
+                f'({svc_or}) ("agency" OR "implementation partner" OR "vendor") after:{since}'
+            ),
+            TW,
+        ),
+        (
+            q(
+                f'("request for proposal" OR "RFP" OR "tender") '
+                f"({svc_or}) (open OR deadline OR bids OR proposals) after:{since}"
+            ),
+            [],
+        ),
+        (
+            q(
+                f'("request for quotation" OR "RFQ" OR "invitation to tender") '
+                f"({svc_or}) after:{since}"
+            ),
+            [],
+        ),
+        (
+            q(
+                f'("looking for" OR "seeking") ("implementation partner" OR "agency" OR "vendor") '
+                f"({svc_or}) after:{since}"
+            ),
+            [],
+        ),
     ]
     return queries
 
@@ -188,12 +205,50 @@ def _opportunity_type(text: str) -> OpportunityType:
     return "weak_signal"
 
 
-_CUTOFF_DAYS = 30
+_CUTOFF_DAYS = 14
+
+_BUYER_REQUEST_RE = re.compile(
+    r"\b(looking for|seeking|request(?:ing)?|need(?:s|ed)?|recommend|invites?)\b",
+    re.IGNORECASE,
+)
+_EXTERNAL_PROVIDER_RE = re.compile(
+    r"\b(vendor|agency|implementation partner|consulting firm|consultant|service provider|"
+    r"proposal|tender|bid|rfp|rfq|request for proposal|request for quotation)\b",
+    re.IGNORECASE,
+)
+_RECRUITMENT_RE = re.compile(
+    r"\b(we(?:'re| are) hiring|job opening|vacancy|apply now|resume|salary|joiners?|"
+    r"years? of experience|full[- ]time|recruiter|staffing|candidate)\b",
+    re.IGNORECASE,
+)
+_PROVIDER_PROMOTION_RE = re.compile(
+    r"\b(we provide|we offer|our services|we built|i built|we deliver|we help|"
+    r"case study|our integration stack|official .{0,30} partner|how to build|"
+    r"building modern|thought leadership)\b",
+    re.IGNORECASE,
+)
 
 
-def _parse_exa_text(text: str, query: str) -> list[DiscoveryItem]:
+def _is_original_buyer_request(url: str, title: str, content: str) -> bool:
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").casefold()
+    path = parsed.path.casefold().rstrip("/")
+    if host == "exa.ai" and path.startswith("/library/"):
+        return False
+    if "linkedin.com" in host and path.startswith("/in/"):
+        return False
+    if "freelancer.com" in host and path.startswith("/community/"):
+        return False
+    combined = f"{title}\n{content}"
+    if _RECRUITMENT_RE.search(combined) or _PROVIDER_PROMOTION_RE.search(combined):
+        return False
+    return bool(_BUYER_REQUEST_RE.search(combined) and _EXTERNAL_PROVIDER_RE.search(combined))
+
+
+def _parse_exa_text(text: str, query: str, *, now: datetime | None = None) -> list[DiscoveryItem]:
     items: list[DiscoveryItem] = []
-    cutoff = datetime.now(UTC) - timedelta(days=_CUTOFF_DAYS)
+    reference_time = now or datetime.now(UTC)
+    cutoff = reference_time - timedelta(days=_CUTOFF_DAYS)
     for index, block in enumerate(re.split(r"\n---\n|\n-{3,}\n", text)):
         fields: dict[str, str] = {}
         for name in ("Title", "URL", "Published", "Author", "Highlights"):
@@ -204,25 +259,24 @@ def _parse_exa_text(text: str, query: str) -> list[DiscoveryItem]:
         parsed = urlsplit(url)
         if parsed.scheme != "https" or not parsed.hostname:
             continue
-        # Exclude personal profile pages (individuals/resumes)
-        if "linkedin.com" in parsed.hostname and parsed.path.startswith("/in/"):
-            continue
         title = fields.get("Title") or "Public requirement result"
         content = (fields.get("Highlights") or block).strip()[:12_000]
         if len(content) < 20:
+            continue
+        if not _is_original_buyer_request(url, title, content):
             continue
         opportunity_type = _opportunity_type(f"{title}\n{content}")
         published_at = None
         if fields.get("Published"):
             try:
-                published_at = datetime.fromisoformat(
-                    fields["Published"].replace("Z", "+00:00")
-                )
+                published_at = datetime.fromisoformat(fields["Published"].replace("Z", "+00:00"))
+                if published_at.tzinfo is None:
+                    published_at = published_at.replace(tzinfo=UTC)
             except ValueError:
                 published_at = None
-        # ── Strict 30-day date gate ──────────────────────────────────────
-        if published_at is not None and published_at < cutoff:
-            continue  # result is older than CUTOFF_DAYS — discard
+        # Missing, future, and stale dates cannot establish a current requirement.
+        if published_at is None or published_at < cutoff or published_at > reference_time:
+            continue
         items.append(
             DiscoveryItem(
                 external_id=f"exa:{index}:{url}",
@@ -259,9 +313,9 @@ def discover_with_exa(
 
     Results older than _CUTOFF_DAYS are discarded before being returned.
     """
-    thirty_ago = (
-        datetime.now(UTC) - timedelta(days=_CUTOFF_DAYS)
-    ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    thirty_ago = (datetime.now(UTC) - timedelta(days=_CUTOFF_DAYS)).strftime(
+        "%Y-%m-%dT%H:%M:%S.000Z"
+    )
 
     queries = build_requirement_queries(product_version)
     results: list[DiscoveryItem] = []
@@ -284,9 +338,10 @@ def discover_with_exa(
         """Run the Exa Agent and convert to DiscoveryItems."""
         try:
             from app.discovery.exa_agent import (  # noqa: PLC0415
-                run_exa_agent,
                 exa_agent_leads_to_discovery_items,
+                run_exa_agent,
             )
+
             leads = run_exa_agent(product_version, max_leads=15)
             return exa_agent_leads_to_discovery_items(leads, query="exa_agent_discovery")
         except Exception:
@@ -323,7 +378,6 @@ def discover_with_exa(
             pass
 
     return results[:max_results]
-
 
 
 def approved_questions() -> tuple[str, ...]:
