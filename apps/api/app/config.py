@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,7 +10,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: Literal["development", "test", "staging", "production"] = "development"
-    database_url: str = "postgresql+psycopg://sales_agent:sales_agent@localhost:5432/sales_agent"
+    database_url: str = Field(
+        default="postgresql+psycopg://sales_agent:sales_agent@localhost:5432/sales_agent",
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL")
+    )
 
     @field_validator("database_url", mode="before")
     @classmethod

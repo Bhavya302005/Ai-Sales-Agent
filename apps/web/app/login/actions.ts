@@ -81,15 +81,22 @@ export async function signInWithCredentials(formData: FormData) {
     return { error: "Please enter your administrator password." };
   }
 
-  const configuredAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  const configuredAdminPassword = (process.env.ADMIN_PASSWORD || "").trim();
+  const configuredAdminEmails = (process.env.ADMIN_EMAIL || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+    
+  const configuredAdminPasswords = (process.env.ADMIN_PASSWORD || "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   const isEmailValid =
-    (configuredAdminEmail && email === configuredAdminEmail) ||
+    configuredAdminEmails.includes(email) ||
     DEFAULT_ADMIN_EMAILS.includes(email);
 
   const isPasswordValid =
-    (configuredAdminPassword && password === configuredAdminPassword) ||
+    configuredAdminPasswords.includes(password) ||
     DEFAULT_ADMIN_PASSWORDS.includes(password);
 
   if (!isEmailValid || !isPasswordValid) {
