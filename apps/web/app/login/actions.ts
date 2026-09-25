@@ -62,10 +62,6 @@ const DEFAULT_ADMIN_EMAILS = [
 ];
 
 const DEFAULT_ADMIN_PASSWORDS = [
-  "admin123",
-  "admin@123",
-  "admin",
-  "SignalPath2026!",
   "admin@3258",
 ];
 
