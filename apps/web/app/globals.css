@@ -155,7 +155,7 @@ th, dt, optgroup { font-weight: 500; }
 /* =========================================================================
    Landing shell
    ========================================================================= */
-.shell { position: relative; z-index: 1; width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+.shell { position: relative;  width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
 .eyebrow {
   font-family: var(--font-mono);
   color: var(--muted-2);
@@ -712,7 +712,7 @@ h1 { max-width: 760px; margin: 16px 0; font-size: clamp(38px, 6.2vw, 62px); line
   min-width: 0;
   padding: 18px 24px 48px;
   position: relative;
-  z-index: 1;
+  
 }
 .workspace-journey { margin: 0 0 24px; border-radius: var(--r-sm); }
 .workspace-journey a { color: var(--muted); background: var(--card); }
@@ -2491,7 +2491,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(18, 16, 15, 0.78);
+  background: rgba(244, 242, 238, 0.78);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   animation: discoveryFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2501,20 +2501,15 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   width: 100%;
   padding: 40px 36px 36px;
   text-align: center;
-  background: radial-gradient(
-    circle at 100% 0%,
-    rgba(232, 48, 67, 0.35) 0%,
-    rgba(232, 48, 67, 0.05) 50%,
-    transparent 70%
-  ), var(--dark);
-  border: none;
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  
+  box-shadow: 0 30px 60px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  color: #ffffff;
+  color: var(--ink);
   position: relative;
   overflow: hidden;
 }
@@ -2531,26 +2526,24 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #ff4b5c 0%, #e83043 60%, #b81c2c 100%);
-  color: #ffffff;
+  background: var(--ink);
+  color: var(--card);
   font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
-  
 }
 .discovery-radar-icon svg {
   width: 22px;
   height: 22px;
-  fill: #ffffff;
+  fill: var(--card);
 }
 .discovery-radar-wave {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1.5px solid rgba(232, 48, 67, 0.45);
-  
+  border: 1.5px solid var(--line-warm);
   opacity: 0;
   animation: discoveryRadarPing 2.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
 }
@@ -2574,7 +2567,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   font-weight: 400;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.52);
+  color: var(--muted-2);
   margin-bottom: -6px;
 }
 .discovery-loading-card h3,
@@ -2583,13 +2576,13 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   font-family: var(--font-sans);
   font-size: 24px;
   font-weight: 500;
-  color: #ffffff !important;
+  color: var(--ink) !important;
   letter-spacing: -0.04em;
   line-height: 1.2;
 }
 .discovery-stage-text {
   margin: 0;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--muted);
   font-family: var(--font-sans);
   font-size: 14.5px;
   font-weight: 400;
@@ -2600,8 +2593,8 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
 .discovery-progress-bar {
   width: 100%;
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   border-radius: var(--r-pill);
   overflow: hidden;
   position: relative;
@@ -2611,8 +2604,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   position: absolute;
   height: 100%;
   width: 45%;
-  background: linear-gradient(90deg, #e83043 0%, #fecd1a 50%, #84e6f6 100%);
-  
+  background: var(--ink);
   border-radius: var(--r-pill);
   animation: discoveryProgressIndeterminate 2s cubic-bezier(0.44, 0, 0.56, 1) infinite;
 }
@@ -2638,24 +2630,21 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   font-weight: 500;
   letter-spacing: -0.01em;
   border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(8px);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
   transition: all 0.25s var(--ease);
 }
 .discovery-badges .source-pill.active {
-  background: rgba(232, 48, 67, 0.18);
-  border-color: rgba(232, 48, 67, 0.45);
-  color: #ffffff;
-  
+  background: var(--bg-2);
+  border-color: var(--line-warm);
+  color: var(--ink);
 }
 .discovery-badges .pill-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #e83043;
-  
+  background: var(--ink);
   animation: discoveryDotPulse 1.8s ease-in-out infinite;
 }
 @keyframes discoveryDotPulse {
@@ -2666,7 +2655,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   margin: 6px 0 0;
   font-family: var(--font-sans);
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--muted);
   line-height: 1.55;
   max-width: 44ch;
 }
@@ -2765,7 +2754,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   left: 14px;
   color: #9ca3af;
   pointer-events: none;
-  z-index: 1;
+  
 }
 
 .leads-search-input {
@@ -3308,7 +3297,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   line-height: 1;
   margin-bottom: 12px;
   position: relative;
-  z-index: 1;
+  
 }
 
 .plan-current-price {
@@ -3317,7 +3306,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   gap: 6px;
   margin-bottom: 10px;
   position: relative;
-  z-index: 1;
+  
 }
 .plan-price-amount { font-size: 28px; font-weight: 400; letter-spacing: -0.04em; color: #fff; }
 .plan-price-period { color: rgba(255, 255, 255, 0.5); font-size: 14px; }
@@ -3328,12 +3317,12 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   font-size: 13px;
   margin: 0 0 24px;
   position: relative;
-  z-index: 1;
+  
 }
 
 .plan-upgrade-btn {
   position: relative;
-  z-index: 1;
+  
   margin-top: 0;
   background: var(--yellow);
   color: var(--ink);
@@ -3444,7 +3433,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   right: -160px;
   pointer-events: none;
 }
-.sub-plan-col.featured > * { position: relative; z-index: 1; }
+.sub-plan-col.featured > * { position: relative;  }
 
 .sub-plan-popular-badge {
   display: inline-block;
@@ -3550,10 +3539,10 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
   color: #fff;
   margin: 8px 0 6px;
   position: relative;
-  z-index: 1;
+  
 }
-.sub-usage-actual-cost { color: rgba(255,255,255,0.55); font-size: 14px; margin-bottom: 6px; position: relative; z-index: 1; }
-.sub-usage-cost-note { color: rgba(255,255,255,0.4); font-size: 12px; margin: 0; position: relative; z-index: 1; }
+.sub-usage-actual-cost { color: rgba(255,255,255,0.55); font-size: 14px; margin-bottom: 6px; position: relative;  }
+.sub-usage-cost-note { color: rgba(255,255,255,0.4); font-size: 12px; margin: 0; position: relative;  }
 
 .sub-usage-signals {
   display: grid;
