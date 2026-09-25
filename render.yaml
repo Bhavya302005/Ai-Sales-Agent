@@ -43,9 +43,23 @@ services:
         value: gemini
       - key: VOICE_TRANSPORT
         value: omnidim
-      - key: OMNIDIM_API_KEY
+      - key: ENABLE_OUTBOUND_PSTN
+        value: "true"
+      - key: OMNIDIM_TEST_TO_NUMBER
         sync: false
+      - key: APP_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: WEB_ORIGIN
+        value: "https://ai-salesagent.vercel.app"
       - key: OMNIDIM_AGENT_ID
+        sync: false
+      - key: OMNIDIM_API_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
