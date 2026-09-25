@@ -23,6 +23,7 @@ import { CampaignLeadUploader } from "./campaign-lead-uploader";
 import { DeleteCampaignButton } from "./delete-campaign-button";
 import { EmailOutreachPanel } from "./email-outreach/EmailOutreachPanel";
 import { getEmailDrafts, getEmailOutreachStatus, type EmailDraft } from "./email-outreach/actions";
+import { refreshProviderCall } from "../calls/[id]/actions";
 
 const WORKFLOW_OPTIONS: CustomSelectOption[] = [
   { value: "leads_and_calling", label: "Discover leads + call" },
@@ -207,7 +208,15 @@ export default async function CampaignsPage({
                           <button className="primary-button" type="submit">Start call</button>
                         </form>
                       ) : ["twilio", "omnidim"].includes(item.latest_call_transport ?? "") && item.latest_call_id && ["connecting", "active", "ending"].includes(item.latest_call_state ?? "") ? (
-                        <Link className="primary-button" href={`/calls/${item.latest_call_id}`}>Track call</Link>
+                        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                          <button className="primary-button" disabled>Call under progress...</button>
+                          {item.latest_call_transport === "omnidim" ? (
+                            <form action={refreshProviderCall}>
+                              <input name="call_id" type="hidden" value={item.latest_call_id} />
+                              <button className="text-button" type="submit" title="OmniDimension calls require manual refresh after hanging up" style={{ fontSize: "12.5px" }}>Refresh when finished</button>
+                            </form>
+                          ) : null}
+                        </div>
                       ) : (
                         <form className="pstn-consent-form" action={requestPstnCall}>
                           <input name="campaign_id" type="hidden" value={campaign.id} />

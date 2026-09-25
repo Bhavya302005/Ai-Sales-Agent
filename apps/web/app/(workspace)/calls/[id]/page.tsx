@@ -45,9 +45,13 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
                 <h2>{isCallActive ? "Live transcript" : "Transcript"}</h2>
               </div>
               {isCallActive ? (
-                <span className="verified-pill" style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(46, 125, 50, 0.1)", color: "#1b5e20", border: "1px solid rgba(46, 125, 50, 0.2)" }}>
-                  <span className="active-profile-dot" /> Live sync active
-                </span>
+                call.transport === "omnidim" ? (
+                  <span className="verified-pill">Pending provider sync</span>
+                ) : (
+                  <span className="verified-pill" style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(46, 125, 50, 0.1)", color: "#1b5e20", border: "1px solid rgba(46, 125, 50, 0.2)" }}>
+                    <span className="active-profile-dot" /> Live sync active
+                  </span>
+                )
               ) : (
                 <span className="verified-pill">{recordingAvailable ? "Provider recording available" : "Audio not stored"}</span>
               )}
@@ -67,7 +71,9 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
               ) : (
                 <article className="transcript-row" style={{ textAlign: "center", padding: "36px 16px" }}>
                   <p style={{ color: "var(--muted)", margin: 0 }}>
-                    Call in progress with recipient. Conversation turns will appear here live as speech is exchanged.
+                    {call.transport === "omnidim"
+                      ? "OmniDimension calls do not stream transcripts live. Complete the phone call, then use 'Refresh transcript now' to fetch the final log."
+                      : "Call in progress with recipient. Conversation turns will appear here live as speech is exchanged."}
                   </p>
                 </article>
               )}
