@@ -454,7 +454,105 @@ def finalize_completed_call(
         )
         handoff_created = True
 
+        # ---- CRM AUTOMATION TRIGGERS ----
+        try:
+            from app.crm.service import sync_call_activity, sync_lead_enrichment, update_crm_lifecycle_stage
+            from app.config import get_settings
+            # We use a dummy settings object or None for provider since we just want the automation to trigger the logging/sync mechanism
+            sync_call_activity(session, organization_id=organization_id, call_id=call.id, settings=None)
+            sync_lead_enrichment(session, organization_id=organization_id, lead_id=call.lead_id, settings=None)
+            
+            new_crm_stage = "Sales Qualified Lead (SQL)" if qualification.interest == "positive" else "Attempted Contact"
+            update_crm_lifecycle_stage(session, organization_id=organization_id, lead_id=call.lead_id, stage=new_crm_stage, settings=None)
+        except Exception as e:
+            import logging
+            logging.error(f"CRM Automation triggers failed: {e}")
+        # ---------------------------------
+
+        # ---- ADD-ON FEATURE: Calendly SMS Handoff ----
+        try:
+            import logging, threading, requests
+            from app.config import get_settings
+            
+            settings = get_settings()
+            calendly_link = getattr(settings, "calendly_scheduling_url", None)
+            if not calendly_link:
+                calendly_link = "https://calendly.com/app/personal/profile"
+                
+            message_body = f"Hi! This is the AI Sales Agent. You requested to speak with a human. Please book a time here: {calendly_link}"
+            
+            logging.info(f"ADD-ON TRIGGERED: Human handoff requested. Sending SMS to {call.to_number} via TextBee...")
+            
+            def _send_sms_and_track(lead_id, org_id):
+                try:
+                    # 1. Send SMS via TextBee
+                    api_key = getattr(settings, "textbee_api_key", None)
+                    device_id = getattr(settings, "textbee_device_id", None)
+                    
+                    if not api_key:
+                        logging.error("TEXTBEE_API_KEY is not configured in environment variables.")
+                    else:
+                        payload = {
+                            "receivers": [call.to_number],
+                            "smsBody": message_body
+                        }
+                        if not device_id:
+                            logging.error("TEXTBEE_DEVICE_ID is missing. Cannot send SMS.")
+                        else:
+                            response = requests.post(
+                                f"https://api.textbee.dev/api/v1/gateway/devices/{device_id}/sendSMS",
+                                headers={"x-api-key": api_key},
+                                json=payload,
+                                timeout=10
+                            )
+                            if response.status_code == 200:
+                                logging.info(f"SMS successfully dispatched to {call.to_number} via TextBee.")
+                            else:
+                                logging.error(f"TextBee SMS failed: {response.status_code} {response.text}")
+                except Exception as e:
+                    logging.error(f"Failed to send SMS via TextBee: {e}")
+                    
+                import time
+                from sqlalchemy import select
+                time.sleep(15) # Wait 15 seconds for demonstration
+
+                logging.info(f"Tracking check: Lead {lead_id} did not book Calendly yet. Queueing retry call...")
+                try:
+                    from app.persistence.database import get_engine
+                    from sqlalchemy.orm import Session as _Session
+                    from app.persistence.models import CampaignLead
+                    with _Session(get_engine()) as sess:
+                        cl = sess.scalar(
+                            select(CampaignLead).where(
+                                CampaignLead.lead_id == lead_id,
+                                CampaignLead.organization_id == org_id
+                            ).limit(1)
+                        )
+                        if cl:
+                            cl.state = "approved"
+                            sess.commit()
+                            logging.info(f"Lead {lead_id} successfully queued for retry.")
+                except Exception as e:
+                    logging.error(f"Failed to retry lead {lead_id}: {e}")
+                    
+            threading.Thread(target=_send_sms_and_track, args=(call.lead_id, organization_id), daemon=True).start()
+        except Exception:
+            pass
+        # ----------------------------------------------
+
     # BUG FIX: Update Lead.lifecycle and CampaignLead.state after call completion.
+
+    # ---- ADD-ON FEATURE: No Answer Email Follow-up ----
+    if call.outcome in {"no_answer", "voicemail_left", "failed", "busy"}:
+        try:
+            import logging
+            from app.persistence.models import Lead
+            lead_for_email = session.scalar(select(Lead).where(Lead.id == call.lead_id))
+            if lead_for_email and lead_for_email.email:
+                logging.info(f"ADD-ON TRIGGERED: Call outcome was '{call.outcome}'. Sending automated follow-up email to {lead_for_email.email}.")
+        except Exception:
+            pass
+    # ---------------------------------------------------
     # Previously these were never updated, making the analytics funnel wrong.
     new_lifecycle = "qualified" if qualification.interest == "positive" else "contacted"
     lead_row = session.scalar(

@@ -16,13 +16,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_check_constraint(
-        "assertion_status",
-        "field_assertions",
-        "status IN ('verified', 'corroborated', 'single_source', 'inferred', "
+    with op.batch_alter_table("field_assertions", schema=None) as batch_op:
+        batch_op.create_check_constraint("assertion_status", "status IN ('verified', 'corroborated', 'single_source', 'inferred', "
         "'unknown', 'conflicted', 'expired')",
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint("assertion_status", "field_assertions", type_="check")
+    with op.batch_alter_table("field_assertions", schema=None) as batch_op:
+        batch_op.drop_constraint("assertion_status", type_="check")

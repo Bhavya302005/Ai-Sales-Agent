@@ -9,7 +9,7 @@ const serverUrl = process.env.CAP_SERVER_URL ?? "https://aisalesagent-jktajfbfw-
 
 const config: CapacitorConfig = {
   appId: "com.signalpath.salesagent",
-  appName: "SignalPath",
+  appName: "AI-SALES-AGENT",
   // Bundled fallback shown when the remote server cannot be reached.
   webDir: "www",
   server: {

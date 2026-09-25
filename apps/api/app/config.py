@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     hubspot_access_token: SecretStr | None = None
     web_origin: str = "http://localhost:3000"
     hubspot_api_version: Literal["2026-03"] = "2026-03"
+    
+    textbee_api_key: str | None = None
+    textbee_device_id: str | None = None
+    
+    calendly_scheduling_url: str | None = None
 
     @model_validator(mode="after")
     def validate_selected_modes(self) -> "Settings":

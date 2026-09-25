@@ -16,13 +16,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_check_constraint(
-        "call_state",
-        "calls",
-        "state IN ('requested', 'eligible', 'connecting', 'active', 'ending', "
+    with op.batch_alter_table("calls", schema=None) as batch_op:
+        batch_op.create_check_constraint("call_state", "state IN ('requested', 'eligible', 'connecting', 'active', 'ending', "
         "'completed', 'failed', 'blocked')",
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint("call_state", "calls", type_="check")
+    with op.batch_alter_table("calls", schema=None) as batch_op:
+        batch_op.drop_constraint("call_state", type_="check")

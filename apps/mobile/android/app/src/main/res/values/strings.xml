@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SignalPath</string>
-    <string name="title_activity_main">SignalPath</string>
+    <string name="app_name">AI-SALES-AGENT</string>
+    <string name="title_activity_main">AI-SALES-AGENT</string>
     <string name="package_name">com.signalpath.salesagent</string>
     <string name="custom_url_scheme">com.signalpath.salesagent</string>
 </resources>

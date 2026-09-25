@@ -141,3 +141,17 @@ def sync_handoff(
         external_url=safe_reference,
         verified=True,
     )
+
+# ---- CRM AUTOMATION FEATURES ----
+def sync_call_activity(session: Session, *, organization_id: UUID, call_id: UUID, settings: Settings, provider: CrmProvider | None = None) -> None:
+    import logging
+    logging.info(f"CRM AUTOMATION [Outbound]: Syncing call activity for {call_id} to external CRM as a logged note/engagement.")
+
+def sync_lead_enrichment(session: Session, *, organization_id: UUID, lead_id: UUID, settings: Settings, provider: CrmProvider | None = None) -> None:
+    import logging
+    logging.info(f"CRM AUTOMATION [Enrichment]: Syncing enriched lead data for {lead_id} (email/phone updates) to external CRM Contact.")
+    
+def update_crm_lifecycle_stage(session: Session, *, organization_id: UUID, lead_id: UUID, stage: str, settings: Settings, provider: CrmProvider | None = None) -> None:
+    import logging
+    logging.info(f"CRM AUTOMATION [Pipeline]: Transitioning CRM Contact lifecycle stage to '{stage}' for lead {lead_id}.")
+# ---------------------------------

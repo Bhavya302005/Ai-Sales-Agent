@@ -39,14 +39,14 @@ def upgrade() -> None:
     )
     op.add_column("calls", sa.Column("campaign_id", sa.Uuid()))
     op.create_index("ix_calls_campaign_id", "calls", ["campaign_id"])
-    op.create_foreign_key(
-        "fk_calls_campaign_id_campaigns",
-        "calls",
-        "campaigns",
-        ["campaign_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("calls") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_calls_campaign_id_campaigns",
+            "campaigns",
+            ["campaign_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:

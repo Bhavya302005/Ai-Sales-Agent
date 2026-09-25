@@ -16,16 +16,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_unique_constraint(
-        "uq_handoff_tasks_organization_id_call_id",
-        "handoff_tasks",
-        ["organization_id", "call_id"],
-    )
+    with op.batch_alter_table("handoff_tasks", schema=None) as batch_op:
+        batch_op.create_unique_constraint("uq_handoff_tasks_organization_id_call_id", ["organization_id", "call_id"])
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "uq_handoff_tasks_organization_id_call_id",
-        "handoff_tasks",
-        type_="unique",
-    )
+    with op.batch_alter_table("handoff_tasks", schema=None) as batch_op:
+        batch_op.drop_constraint("uq_handoff_tasks_organization_id_call_id", type_="unique")
