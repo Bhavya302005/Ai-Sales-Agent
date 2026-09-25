@@ -32,7 +32,7 @@ class ProfileSource(BaseModel):
     label: str = Field(min_length=1, max_length=200)
     kind: Literal["website", "document", "user_input"]
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
-    excerpt: str = Field(min_length=1, max_length=600)
+    excerpt: str = Field(min_length=1, max_length=3000)
 
 
 class ProfileSuggestion(BaseModel):
@@ -150,7 +150,7 @@ def make_source(
         label=label[:200],
         kind=kind,
         content_hash=sha256(encoded).hexdigest(),
-        excerpt=_clean_text(text, 600),
+        excerpt=_clean_text(text, 3000),
     )
 
 

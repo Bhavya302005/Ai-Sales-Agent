@@ -110,7 +110,7 @@ def _build_system_prompt(product_version: Any) -> str:
         if src.get("kind") == "website":
             website_excerpt = src.get("excerpt", "")
         elif src.get("kind") == "document":
-            sales_doc_excerpt = src.get("excerpt", "")[:600]
+            sales_doc_excerpt = src.get("excerpt", "")[:3000]
 
     company_description = product_version.description or ""
 
