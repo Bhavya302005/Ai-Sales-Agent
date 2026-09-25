@@ -155,7 +155,8 @@ Specific Problems / Requirements We Solve:
    - Organizational initiative announcing a technology modernization or outsourcing project
 4. EVIDENCE PROVENANCE: The requirement and buying_intent_signal fields must contain factual, verifiable excerpts from the source URL.
 5. FIT SCORE: Rate 0-100 based strictly on industry match, geography match, and explicit budget/need alignment. Return only leads with fit_score >= 60.
-6. CONTACT GROUNDING: If an executive, founder, or project owner is mentioned in the post, capture their contact_name and contact_title. Otherwise leave as null. Do not invent fictitious contact details."""
+6. CONTACT GROUNDING: If an executive, founder, or project owner is mentioned in the post, capture their contact_name and contact_title. Otherwise leave as null. Do not invent fictitious contact details.
+7. RECENCY: You must only return leads and opportunities posted within the last 14 days. Reject any posts or RFPs older than 14 days, as they are no longer active commercial needs."""
 
     return prompt
 
@@ -173,10 +174,10 @@ def _build_query(product_version: Any) -> str:
     geo_str = " or ".join(geographies[:2]) if geographies else "India"
 
     return (
-        f"Find corporate buyers, enterprises, and funded startups in {industry_str} located in {geo_str} "
+        f"Find RECENT (posted within the last 14 days) corporate buyers, enterprises, and funded startups in {industry_str} located in {geo_str} "
         f"that have an active commercial need or are actively seeking an external agency, implementation partner, or B2B vendor for: {primary_service}. "
         f"Related requirements to consider: {secondary_services}. "
-        f"Search executive LinkedIn posts, corporate procurement RFPs, verified B2B client project bids, and company announcements. "
+        f"Search RECENT executive LinkedIn posts (from the last 14 days), corporate procurement RFPs, verified B2B client project bids, and company announcements. "
         f"CRITICAL: Strictly exclude all job postings, HR recruitment, hiring for 'joiners' or 'candidates', directory sites, and agencies advertising their own services. We only want B2B outsourcing and vendor procurement. "
         f"Return verified company names, requirement details, source URLs, and buying intent rationale."
     )
