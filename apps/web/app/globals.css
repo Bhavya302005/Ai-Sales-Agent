@@ -2326,7 +2326,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
 .workflow-choice { display: grid; gap: 10px; padding: 0; border: 0; }
 .workflow-choice legend { margin-bottom: 12px; color: var(--ink); font-size: 17px; font-weight: 500; }
 .workflow-choice label { display: flex; grid-template-columns: none; flex-direction: row; align-items: flex-start; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: var(--r-sm); cursor: pointer; background: var(--card); }
-.workflow-choice label:has(input:checked) { border-color: var(--yellow-strong); background: var(--yellow); }
+.workflow-choice label:has(input:checked) { border-color: var(--line-warm); background: var(--bg-2); }
 .workflow-choice input, .confirmation-check input { width: auto; margin-top: 3px; accent-color: var(--ink); }
 .workflow-choice label span { display: grid; gap: 4px; }
 .confirmation-check { display: flex !important; grid-template-columns: none !important; flex-direction: row; align-items: flex-start; gap: 10px !important; }
