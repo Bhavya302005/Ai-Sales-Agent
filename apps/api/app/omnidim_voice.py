@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.contact_secrets import resolve_phone_number
-from app.persistence.models import Call, Company, Contact, ExternalMapping, Lead, Requirement
+from app.persistence.models import Call, Company, Contact, ExternalMapping, Lead, Requirement, Workspace
 
 
 class OmniDimPermanentError(ValueError):
@@ -208,15 +208,18 @@ def provider_mapping(session: Session, *, call_id: UUID) -> ExternalMapping | No
 
 def _call_context(session: Session, call: Call, settings: Settings) -> dict[str, str]:
     row = session.execute(
-        select(Requirement.normalized_need, Company.normalized_name)
+        select(Requirement.normalized_need, Company.normalized_name, Workspace.name)
         .join(Lead, Lead.requirement_id == Requirement.id)
         .outerjoin(Company, Company.id == Lead.company_id)
+        .join(Workspace, Workspace.organization_id == call.organization_id)
         .where(Lead.id == call.lead_id, Lead.organization_id == call.organization_id)
+        .limit(1)
     ).one_or_none()
-    requirement, company = row if row else ("Unknown", "Unknown company")
+    requirement, company, workspace_name = row if row else ("Unknown", "Unknown company", "Your Company")
     context = {
         "call_id": str(call.id),
         "local_call_id": str(call.id),
+        "calling_company": str(workspace_name)[:200],
         "company": str(company or "Unknown company")[:200],
         "business_requirement": str(requirement or "Unknown")[:500],
         "consent_scope": "single consented hackathon qualification call",
