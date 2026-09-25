@@ -177,26 +177,40 @@ def _ingest_and_extract(
             session.flush()
             process_event(session, queued.event.event_id)
 
-    # ── Synchronous parallel phone & contact enrichment (5-10s budget) ────────
-    pairs = [
-        (item, dict(doc.provider_metadata or {}))
-        for item, doc in zip(items, documents)
-    ]
+    # ── Contact enrichment: enrich new or unenriched documents (budgeted) ──
+    # Only enrich live provider items, never offline saved snapshots
+    if provider != "saved_snapshot":
+        docs_to_enrich = [
+            (idx, item, dict(doc.provider_metadata or {}))
+            for idx, (item, doc) in enumerate(zip(items, documents))
+            if not (doc.provider_metadata or {}).get("best_phone")
+            and not (doc.provider_metadata or {}).get("enriched")
+        ]
 
-    def _enrich_one(item_meta: tuple[DiscoveryItem, dict[str, Any]]) -> dict[str, Any]:
-        itm, meta = item_meta
-        if not meta.get("best_phone"):
-            contact_data = enrich_contact(itm)
-            meta.update(contact_data)
-        return meta
+        sync_candidates = docs_to_enrich[:6]
+        async_candidates = docs_to_enrich[6:]
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        enriched_metas = list(pool.map(_enrich_one, pairs))
+        def _enrich_one(trip: tuple[int, DiscoveryItem, dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+            idx, itm, meta = trip
+            try:
+                contact_data = enrich_contact(itm)
+                meta.update(contact_data)
+            except Exception:
+                pass
+            meta["enriched"] = True
+            return idx, meta
 
-    for doc, meta in zip(documents, enriched_metas):
-        doc.provider_metadata = meta
+        if sync_candidates:
+            with ThreadPoolExecutor(max_workers=min(len(sync_candidates), 6)) as pool:
+                for idx, meta in pool.map(_enrich_one, sync_candidates):
+                    documents[idx].provider_metadata = meta
 
-    session.commit()
+        session.commit()
+
+        # Offload any remaining unenriched candidates to daemon threads
+        for idx, itm, _ in async_candidates:
+            _spawn_phone_enrichment(itm, documents[idx].id)
+
     for document in documents:
         session.refresh(document)
     return DiscoveryImportResponse(

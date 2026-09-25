@@ -9,7 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.discovery.connectors import FetchedSource
-from app.persistence.models import SourceDocument, Workspace
+from app.persistence.models import Product, SourceDocument, Workspace
 from app.usage.service import record_usage_once
 
 
@@ -39,12 +39,22 @@ def ingest_source(
     )
     if existing is not None:
         return IngestionResult(document=existing, created=False)
-    workspace = session.scalar(
-        select(Workspace)
-        .where(Workspace.organization_id == organization_id)
-        .order_by(Workspace.created_at, Workspace.id)
+    product = session.scalar(
+        select(Product)
+        .where(Product.organization_id == organization_id)
+        .order_by(Product.active_version_id.is_not(None).desc(), Product.created_at.desc())
         .limit(1)
     )
+    workspace = None
+    if product is not None and product.workspace_id:
+        workspace = session.get(Workspace, product.workspace_id)
+    if workspace is None:
+        workspace = session.scalar(
+            select(Workspace)
+            .where(Workspace.organization_id == organization_id)
+            .order_by(Workspace.created_at, Workspace.id)
+            .limit(1)
+        )
     if workspace is None:
         raise ValueError("organization has no workspace")
     now = datetime.now(UTC)

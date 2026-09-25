@@ -35,6 +35,7 @@ const DEFAULT_ADMIN_PASSWORDS = [
   "admin@123",
   "admin",
   "SignalPath2026!",
+  "admin@3258",
 ];
 
 export async function signInWithCredentials(formData: FormData) {

@@ -42,3 +42,6 @@ job_scraper/*.json
 demo_leads.csv
 test_lead.csv
 cookies.txt
+.vercel
+.env*
+local.db

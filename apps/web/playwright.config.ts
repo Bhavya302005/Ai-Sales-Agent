@@ -8,8 +8,15 @@ const sharedApiEnvironment = {
   CALL_WINDOW_START_HOUR: "0",
   CALL_WINDOW_END_HOUR: "24",
   CRM_MODE: "mock",
+  CALENDLY_ACCESS_TOKEN: "synthetic-calendly-token",
+  CALENDLY_EVENT_TYPE_URI: "https://api.calendly.com/event_types/SYNTHETIC",
+  CALENDLY_ORGANIZATION_URI: "https://api.calendly.com/organizations/SYNTHETIC",
+  CALENDLY_WEBHOOK_SIGNING_KEY: "synthetic-webhook-key",
   DATABASE_URL: databaseUrl,
+  OMNIDIM_TOOL_SECRET: "synthetic-provider-tool-secret",
+  PUBLIC_API_BASE_URL: "https://api.example.test",
   RECORD_AUDIO: "false",
+  SMS_MODE: "mock",
   VOICE_TRANSPORT: "browser",
 };
 

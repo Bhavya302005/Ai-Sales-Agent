@@ -278,6 +278,38 @@ def update_campaign(
     return _campaign_response(session, auth.organization_id, campaign)
 
 
+@router.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_campaign(
+    campaign_id: UUID,
+    request: Request,
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+) -> Response:
+    if auth.role not in {"owner", "operator"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+    campaign = session.scalar(
+        select(Campaign).where(
+            Campaign.organization_id == auth.organization_id, Campaign.id == campaign_id
+        )
+    )
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    session.add(
+        AuditLog(
+            organization_id=auth.organization_id,
+            actor_id=auth.user_id,
+            action="campaign_deleted",
+            target_type="campaign",
+            target_id=campaign.id,
+            reason=f"name={campaign.name}",
+            request_id=request.state.request_id,
+        )
+    )
+    session.delete(campaign)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/campaigns/{campaign_id}/results", response_model=CampaignResponse)
 def campaign_results(
     campaign_id: UUID,
@@ -326,34 +358,53 @@ def _sync_single_omnidim_call(
     if result is None:
         return False
     terminal = result.status in {"completed", "busy", "failed", "no_answer"}
-    if terminal and not session.scalar(
-        select(TranscriptSegment.id).where(
-            TranscriptSegment.organization_id == organization_id,
-            TranscriptSegment.call_id == call.id,
-        )
-    ):
-        sequence = 1
-        for interaction in result.interactions[:100]:
-            if not isinstance(interaction, dict):
+    existing_segments = list(
+        session.scalars(
+            select(TranscriptSegment)
+            .where(
+                TranscriptSegment.organization_id == organization_id,
+                TranscriptSegment.call_id == call.id,
+            )
+            .order_by(TranscriptSegment.sequence)
+        ).all()
+    )
+    existing_texts = {(s.speaker, s.text.strip()) for s in existing_segments}
+    sequence = len(existing_segments) + 1
+    new_segments_added = False
+
+    for interaction in result.interactions[:100]:
+        if not isinstance(interaction, dict):
+            continue
+        user_text = str(interaction.get("user_query") or "").strip()
+        agent_text = str(interaction.get("bot_response") or "").strip()
+        turns: list[tuple[str, str]] = []
+        if user_text:
+            turns.append(("participant", user_text))
+        if agent_text:
+            turns.append(("agent", agent_text))
+
+        for speaker, text in turns:
+            if (speaker, text) in existing_texts:
                 continue
-            for speaker, key in (("participant", "user_query"), ("agent", "bot_response")):
-                text = str(interaction.get(key) or "").strip()
-                if not text:
-                    continue
-                session.add(
-                    TranscriptSegment(
-                        organization_id=organization_id,
-                        call_id=call.id,
-                        sequence=sequence,
-                        speaker=speaker,
-                        started_ms=(sequence - 1) * 1000,
-                        ended_ms=sequence * 1000,
-                        text=text[:5000],
-                        language="en-IN",
-                        is_final=True,
-                    )
+            session.add(
+                TranscriptSegment(
+                    organization_id=organization_id,
+                    call_id=call.id,
+                    sequence=sequence,
+                    speaker=speaker,
+                    started_ms=(sequence - 1) * 1000,
+                    ended_ms=sequence * 1000,
+                    text=text[:5000],
+                    language="en-IN",
+                    is_final=True,
                 )
-                sequence += 1
+            )
+            existing_texts.add((speaker, text))
+            sequence += 1
+            new_segments_added = True
+
+    if new_segments_added:
+        session.flush()
     call.usage = {
         **call.usage,
         "provider_status": result.status,
@@ -583,6 +634,83 @@ def approve_campaign_lead(
     return _campaign_lead_response(session, auth.organization_id, item)
 
 
+@router.delete("/campaigns/{campaign_id}/leads", status_code=status.HTTP_204_NO_CONTENT)
+def remove_campaign_leads(
+    campaign_id: UUID,
+    request: Request,
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+) -> Response:
+    if auth.role not in {"owner", "operator"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+    campaign = session.scalar(
+        select(Campaign).where(
+            Campaign.organization_id == auth.organization_id, Campaign.id == campaign_id
+        )
+    )
+    if campaign is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
+    items = session.scalars(
+        select(CampaignLead).where(
+            CampaignLead.organization_id == auth.organization_id,
+            CampaignLead.campaign_id == campaign_id,
+        )
+    ).all()
+    count = len(items)
+    for item in items:
+        session.delete(item)
+    session.add(
+        AuditLog(
+            organization_id=auth.organization_id,
+            actor_id=auth.user_id,
+            action="campaign_leads_cleared",
+            target_type="campaign",
+            target_id=campaign.id,
+            reason=f"Removed {count} lead(s) from campaign",
+            request_id=request.state.request_id,
+        )
+    )
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/campaigns/{campaign_id}/leads/{lead_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def remove_campaign_lead(
+    campaign_id: UUID,
+    lead_id: UUID,
+    request: Request,
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+) -> Response:
+    if auth.role not in {"owner", "operator"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+    item = session.scalar(
+        select(CampaignLead).where(
+            CampaignLead.organization_id == auth.organization_id,
+            CampaignLead.campaign_id == campaign_id,
+            CampaignLead.lead_id == lead_id,
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign lead not found")
+    session.add(
+        AuditLog(
+            organization_id=auth.organization_id,
+            actor_id=auth.user_id,
+            action="campaign_lead_removed",
+            target_type="campaign_lead",
+            target_id=item.id,
+            reason=f"Removed lead {lead_id} from campaign {campaign_id}",
+            request_id=request.state.request_id,
+        )
+    )
+    session.delete(item)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/calls/requests", response_model=CallResponse, status_code=201)
 def create_call_request(
     payload: CallRequest,
@@ -630,14 +758,14 @@ def attest_pstn_consent(
         select(Contact).where(
             Contact.id == contact_id,
             Contact.organization_id == auth.organization_id,
-            Contact.channel == "phone",
+            (Contact.channel == "phone") | (Contact.demo_test_contact.is_(True)),
         )
     )
     if contact is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Phone contact not found"
         )
-    if not is_dialable_phone_ref(contact.identifier_encrypted_ref):
+    if not contact.demo_test_contact and not is_dialable_phone_ref(contact.identifier_encrypted_ref):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Contact number is not securely available; re-import this contact",
@@ -712,7 +840,7 @@ def dispatch_call(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"{call.transport} rejected the outbound call request",
+            detail=f"{call.transport} outbound call failed: {exc}",
         ) from exc
     session.add(
         AuditLog(

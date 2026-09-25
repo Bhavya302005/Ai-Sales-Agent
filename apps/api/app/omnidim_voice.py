@@ -53,7 +53,7 @@ class OmniDimClient:
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url=settings.omnidim_api_base_url.rstrip("/"),
-            timeout=httpx.Timeout(15, connect=5),
+            timeout=httpx.Timeout(30, connect=20),
         )
         self._client.headers.update(
             {
@@ -206,7 +206,7 @@ def provider_mapping(session: Session, *, call_id: UUID) -> ExternalMapping | No
     )
 
 
-def _call_context(session: Session, call: Call) -> dict[str, str]:
+def _call_context(session: Session, call: Call, settings: Settings) -> dict[str, str]:
     row = session.execute(
         select(Requirement.normalized_need, Company.normalized_name)
         .join(Lead, Lead.requirement_id == Requirement.id)
@@ -214,12 +214,24 @@ def _call_context(session: Session, call: Call) -> dict[str, str]:
         .where(Lead.id == call.lead_id, Lead.organization_id == call.organization_id)
     ).one_or_none()
     requirement, company = row if row else ("Unknown", "Unknown company")
-    return {
+    context = {
+        "call_id": str(call.id),
         "local_call_id": str(call.id),
         "company": str(company or "Unknown company")[:200],
         "business_requirement": str(requirement or "Unknown")[:500],
         "consent_scope": "single consented hackathon qualification call",
+        "booking_handoff_instruction": (
+            "If the lead explicitly asks for a human, ask whether you may text one Calendly "
+            "link and call once after 24 hours if they do not book. Invoke the configured "
+            "booking tool only after explicit consent; never claim delivery beyond its result."
+        ),
     }
+    if settings.public_api_base_url:
+        context["booking_tool_url"] = (
+            settings.public_api_base_url.rstrip("/")
+            + "/api/v1/provider-tools/omnidim/send-booking-link"
+        )
+    return context
 
 
 def dispatch_omnidim_call(
@@ -258,7 +270,7 @@ def dispatch_omnidim_call(
         destination = resolve_phone_number(contact.identifier_encrypted_ref, settings)
         result = adapter.dispatch(
             call_id=call.id,
-            context=_call_context(session, call),
+            context=_call_context(session, call, settings),
             to_number=destination,
         )
     except Exception:

@@ -57,6 +57,7 @@ def _client(
         crm_mode="hubspot" if hubspot else "mock",
         hubspot_access_token=SecretStr("sandbox-token") if hubspot else None,
         twilio_test_to_number="+919876543210",
+        voice_transport="twilio",
     )
     engine = create_engine(database_url)
     Base.metadata.create_all(engine)

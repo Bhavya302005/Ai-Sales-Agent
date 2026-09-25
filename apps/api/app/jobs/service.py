@@ -11,6 +11,7 @@ from app.crm.providers import CrmPermanentError
 from app.extraction.service import extract_source
 from app.notifications import notify_roles
 from app.persistence.models import (
+    BookingFollowup,
     IdempotencyRecord,
     Lead,
     OutboxEvent,
@@ -185,10 +186,27 @@ def _handle_crm_sync(session: Session, event: OutboxEvent) -> None:
         raise PermanentJobError(str(exc)) from exc
 
 
+def _handle_booking_link_send(session: Session, event: OutboxEvent) -> None:
+    followup_id = _payload_id(event, "booking_followup")
+    from app.booking_followups.providers import ProviderPermanentError
+    from app.booking_followups.service import process_link_send
+
+    try:
+        process_link_send(
+            session,
+            organization_id=event.organization_id,
+            followup_id=followup_id,
+            settings=get_settings(),
+        )
+    except (ProviderPermanentError, LookupError, ValueError) as exc:
+        raise PermanentJobError(str(exc)) from exc
+
+
 HANDLERS = {
     "lead.extraction_requested.v1": _handle_extraction,
     "lead.scoring_requested.v1": _handle_scoring,
     "crm.sync_requested.v1": _handle_crm_sync,
+    "booking.link_send_requested.v1": _handle_booking_link_send,
 }
 
 
@@ -284,6 +302,17 @@ def process_event(session: Session, event_id: UUID) -> ProcessResult:
             )
             if source:
                 source.extraction_status = failed.state
+        if failed.aggregate_type == "booking_followup" and failed.state == "action_required":
+            followup = session.scalar(
+                select(BookingFollowup).where(
+                    BookingFollowup.organization_id == failed.organization_id,
+                    BookingFollowup.id == failed.aggregate_id,
+                )
+            )
+            if followup:
+                followup.status = "action_required"
+                followup.delivery_status = "failed"
+                followup.last_error_code = failed.last_error_code
         if failed.event_type == "crm.sync_requested.v1" and failed.state == "action_required":
             notify_roles(
                 session,

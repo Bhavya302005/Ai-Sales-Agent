@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed-dim": "#d0bcff",
+                        "on-surface": "#e0e3e5",
+                        "inverse-primary": "#494bd6",
+                        "on-error-container": "#ffdad6",
+                        "primary-container": "#8083ff",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "surface-tint": "#c0c1ff",
+                        "surface": "#101415",
+                        "on-secondary": "#3c0091",
+                        "on-secondary-fixed": "#23005c",
+                        "error-container": "#93000a",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "surface-container": "#1d2022",
+                        "on-primary-container": "#0d0096",
+                        "primary": "#c0c1ff",
+                        "secondary": "#d0bcff",
+                        "surface-container-highest": "#323537",
+                        "on-secondary-fixed-variant": "#5516be",
+                        "tertiary": "#bec6e0",
+                        "inverse-on-surface": "#2d3133",
+                        "surface-container-high": "#272a2c",
+                        "outline": "#908fa0",
+                        "secondary-container": "#571bc1",
+                        "surface-dim": "#101415",
+                        "on-primary": "#1000a9",
+                        "surface-bright": "#363a3b",
+                        "inverse-surface": "#e0e3e5",
+                        "on-tertiary": "#283044",
+                        "tertiary-container": "#8990a8",
+                        "on-background": "#e0e3e5",
+                        "on-tertiary-fixed-variant": "#3f465c",
+                        "background": "#101415",
+                        "surface-container-low": "#191c1e",
+                        "on-surface-variant": "#c7c4d7",
+                        "on-tertiary-container": "#22293d",
+                        "primary-fixed": "#e1e0ff",
+                        "surface-variant": "#323537",
+                        "error": "#ffb4ab",
+                        "on-secondary-container": "#c4abff",
+                        "outline-variant": "#464554",
+                        "surface-container-lowest": "#0b0f10",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "tertiary-fixed": "#dae2fd",
+                        "tertiary-fixed-dim": "#bec6e0",
+                        "on-tertiary-fixed": "#131b2e",
+                        "secondary-fixed": "#e9ddff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-lg": "32px",
+                        "stack-md": "16px",
+                        "base": "8px",
+                        "container-padding-desktop": "32px",
+                        "stack-sm": "8px",
+                        "gutter": "24px",
+                        "container-padding-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-xl": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #020617; /* Base Layer as per style guidance */
+            color: #e0e3e5;
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-card {
+            background: #0F172A; /* Surface Layer */
+            border: 1px solid #1E293B; /* Slate-800 border */
+            backdrop-filter: blur(12px);
+        }
+        .active-glow {
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+            border-color: #c0c1ff;
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        }
+        .chart-gradient {
+            background: linear-gradient(to top, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.3));
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface z-40 border-b border-outline-variant flex justify-between items-center px-container-padding-mobile h-16">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary">menu</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">AI Job Mailer</h1>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img alt="User profile photo" data-alt="A professional close-up headshot of a high-tech executive with sleek glasses, set against a dark, futuristic background with soft indigo highlights. The lighting is moody and cinematic, emphasizing a sharp, intelligent professional look consistent with a premium AI service aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDptp5GaSHjIhQrbQmOYzrSIz7cm1-gvXJx2wvp3ujG0utzWikJYcpYU9tDmwUiTVStRp48lsMxZth8IZjqlHSe906KHPnXqITNCZbHRa6vgzo_ePv3566U_cySt9k9MUURCG0M3thyOd3fPfWPMihnr5PSXK7FJouHwg-m4sStbl7929_g4zTzmugu9IAbFG_OXFhHC3vEKNsrgx2Je9tIVuxnjt6-FrDMWXWYZX0Sr-gq0fG22ASNlS_Plxky488DqkAXRcnGHkIh"/>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 px-container-padding-mobile py-stack-md space-y-stack-lg mb-24">
+<!-- KPI Cards Section -->
+<section class="grid grid-cols-2 gap-gutter">
+<!-- Emails Sent -->
+<div class="glass-card p-stack-md rounded-xl flex flex-col justify-between">
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant mb-1">Emails Sent</p>
+<h2 class="font-headline-md text-headline-md font-bold">1,284</h2>
+</div>
+<div class="flex items-center gap-1 text-emerald-400 mt-2">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span class="text-xs font-bold">+12%</span>
+</div>
+</div>
+<!-- Replies Received -->
+<div class="glass-card p-stack-md rounded-xl flex flex-col justify-between">
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant mb-1">Replies Received</p>
+<h2 class="font-headline-md text-headline-md font-bold">42</h2>
+</div>
+<div class="flex items-center gap-1 text-emerald-400 mt-2">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span class="text-xs font-bold">+5%</span>
+</div>
+</div>
+<!-- Interviews Scheduled (Full width span or focus) -->
+<div class="glass-card p-stack-md rounded-xl col-span-2 flex items-center justify-between border-l-4 border-l-secondary">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full primary-gradient flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Interviews Scheduled</p>
+<h2 class="font-headline-md text-headline-md font-bold">8</h2>
+</div>
+</div>
+<div class="w-12 h-12">
+<div class="relative w-full h-full flex items-center justify-center">
+<div class="absolute inset-0 rounded-full border-4 border-outline-variant opacity-20"></div>
+<div class="absolute inset-0 rounded-full border-4 border-secondary border-t-transparent animate-pulse"></div>
+<span class="text-[10px] font-bold text-secondary">AI PULSE</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Performance Chart Section -->
+<section class="glass-card p-stack-md rounded-xl">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline-md text-headline-md text-on-surface">Outreach Performance</h3>
+<span class="text-xs text-on-surface-variant">Last 7 Days</span>
+</div>
+<div class="h-40 w-full relative flex items-end justify-between gap-1">
+<!-- Mock Line Chart Path with CSS -->
+<div class="absolute inset-0 flex items-center justify-center opacity-30">
+<svg class="w-full h-full overflow-visible" viewbox="0 0 400 100">
+<path d="M0,80 Q50,70 100,40 T200,50 T300,20 T400,10" fill="none" stroke="url(#lineGrad)" stroke-width="3"></path>
+<defs>
+<lineargradient id="lineGrad" x1="0%" x2="100%" y1="0%" y2="0%">
+<stop offset="0%" style="stop-color:#6366f1;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1"></stop>
+</lineargradient>
+</defs>
+</svg>
+</div>
+<!-- Bars for rhythm -->
+<div class="w-full h-32 chart-gradient rounded-t-sm flex items-end justify-around px-2">
+<div class="w-2 h-1/2 bg-primary rounded-t-full opacity-50"></div>
+<div class="w-2 h-2/3 bg-primary rounded-t-full opacity-50"></div>
+<div class="w-2 h-1/3 bg-primary rounded-t-full opacity-50"></div>
+<div class="w-2 h-3/4 bg-primary rounded-t-full opacity-50"></div>
+<div class="w-2 h-1/2 bg-primary rounded-t-full opacity-50"></div>
+<div class="w-2 h-5/6 bg-primary rounded-t-full opacity-50"></div>
+<div class="w-2 h-4/5 bg-primary rounded-t-full opacity-50"></div>
+</div>
+</div>
+<div class="flex justify-between mt-4 px-2">
+<span class="text-[10px] text-on-surface-variant">Mon</span>
+<span class="text-[10px] text-on-surface-variant">Tue</span>
+<span class="text-[10px] text-on-surface-variant">Wed</span>
+<span class="text-[10px] text-on-surface-variant">Thu</span>
+<span class="text-[10px] text-on-surface-variant">Fri</span>
+<span class="text-[10px] text-on-surface-variant">Sat</span>
+<span class="text-[10px] text-on-surface-variant">Sun</span>
+</div>
+</section>
+<!-- Activity Feed -->
+<section class="space-y-stack-md">
+<h3 class="font-headline-md text-headline-md text-on-surface">Activity Feed</h3>
+<div class="space-y-stack-sm">
+<!-- Activity Item 1 -->
+<div class="glass-card p-stack-md rounded-xl flex gap-stack-md items-start">
+<div class="p-2 rounded-lg bg-primary-container/20 text-primary">
+<span class="material-symbols-outlined">smart_toy</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface leading-tight">Agent applied to <span class="font-bold text-primary">Senior UX Designer</span> role</p>
+<p class="font-label-md text-label-md text-on-surface-variant mt-1">2 mins ago • TechFlow Inc.</p>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="glass-card p-stack-md rounded-xl flex gap-stack-md items-start border-l-4 border-l-emerald-500">
+<div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+<span class="material-symbols-outlined">move_to_inbox</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface leading-tight">New reply from <span class="font-bold text-primary">Google</span> recruiting team</p>
+<p class="font-label-md text-label-md text-on-surface-variant mt-1">45 mins ago • Interview Request</p>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="glass-card p-stack-md rounded-xl flex gap-stack-md items-start">
+<div class="p-2 rounded-lg bg-secondary-container/20 text-secondary">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface leading-tight">Resume updated with <span class="font-bold text-primary">AI Matcher</span> optimizations</p>
+<p class="font-label-md text-label-md text-on-surface-variant mt-1">2 hours ago • Version 4.2</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container border-t border-outline-variant rounded-t-xl lg:hidden">
+<!-- Agent (Active) -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl p-2 active:scale-90 duration-150 transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<span class="font-label-md text-label-md">Agent</span>
+</a>
+<!-- Outreach -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2 hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">send</span>
+<span class="font-label-md text-label-md">Outreach</span>
+</a>
+<!-- Inbox -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2 hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">move_to_inbox</span>
+<span class="font-label-md text-label-md">Inbox</span>
+</a>
+<!-- Resume -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2 hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-md text-label-md">Resume</span>
+</a>
+</nav>
+</body></html>

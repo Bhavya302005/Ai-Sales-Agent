@@ -100,7 +100,8 @@ def build_requirement_queries(product_version: ProductVersion) -> list[tuple[str
         )
         if part
     )
-    excl = " ".join(f'-"{e}"' for e in exclusions)
+    base_excl = ["we provide", "our services", "clutch.co", "goodfirms.co", "job seeker", "looking for a job", "resume"]
+    excl = " ".join(f'-"{e}"' for e in exclusions + base_excl)
 
     def q(query: str) -> str:
         """Append ICP context and exclusions."""
@@ -202,6 +203,9 @@ def _parse_exa_text(text: str, query: str) -> list[DiscoveryItem]:
         url = fields.get("URL", "")
         parsed = urlsplit(url)
         if parsed.scheme != "https" or not parsed.hostname:
+            continue
+        # Exclude personal profile pages (individuals/resumes)
+        if "linkedin.com" in parsed.hostname and parsed.path.startswith("/in/"):
             continue
         title = fields.get("Title") or "Public requirement result"
         content = (fields.get("Highlights") or block).strip()[:12_000]
@@ -308,12 +312,15 @@ def discover_with_exa(
                     break
 
         # Collect Exa Agent results (structured, higher quality — prepend so they rank first)
-        agent_items = agent_future.result()
-        agent_items_new = [it for it in agent_items if it.canonical_url not in seen]
-        for it in agent_items_new:
-            seen.add(it.canonical_url)
-        # Prepend agent results so they appear first (highest quality)
-        results = agent_items_new + results
+        try:
+            agent_items = agent_future.result(timeout=min(timeout_seconds, 60))
+            agent_items_new = [it for it in agent_items if it.canonical_url not in seen]
+            for it in agent_items_new:
+                seen.add(it.canonical_url)
+            # Prepend agent results so they appear first (highest quality)
+            results = agent_items_new + results
+        except Exception:
+            pass
 
     return results[:max_results]
 

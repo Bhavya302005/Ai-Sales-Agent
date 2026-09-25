@@ -118,6 +118,12 @@ export type OfferingVersion = {
   target_customers: string[];
   analysis_method: string | null;
   profile_source_count: number;
+  profile_sources?: Array<{
+    label: string;
+    kind: "website" | "document" | "user_input";
+    content_hash: string;
+    excerpt: string;
+  }>;
 };
 
 export type BusinessProfileAnalysis = {
@@ -320,6 +326,21 @@ export type CallDetail = {
     crm_provider: "mock" | "hubspot";
     crm_sync_status: "not_requested" | "pending" | "retrying" | "succeeded" | "action_required";
   } | null;
+  booking_followup: {
+    id: string;
+    status: "prepared" | "delivery_pending" | "awaiting_booking" | "booked" | "canceled" | "retry_due" | "retry_dispatched" | "action_required";
+    delivery_mode: "disabled" | "mock" | "twilio";
+    delivery_status: "pending" | "sent" | "simulated" | "failed" | "suppressed";
+    calendly_link: string | null;
+    link_sent_at: string | null;
+    booking_check_at: string | null;
+    booked_at: string | null;
+    canceled_at: string | null;
+    scheduled_start_at: string | null;
+    retry_count: number;
+    retry_call_id: string | null;
+    last_error_code: string | null;
+  } | null;
 };
 
 export type Funnel = {
@@ -340,6 +361,15 @@ export type DiscoveryBreakdown = {
   interested: number;
 };
 
+export type ProviderUsage = {
+  provider: string;
+  label: string;
+  unit: string;
+  quantity: string | number;
+  cost_inr: string | number;
+  details: string;
+};
+
 export type Usage = {
   totals: Array<{
     unit: string;
@@ -347,6 +377,7 @@ export type Usage = {
     estimated_cost_inr: string;
     actual_cost_inr: string | null;
   }>;
+  providers?: ProviderUsage[];
   total_estimated_cost_inr: string;
   total_actual_cost_inr: string | null;
   average_voice_latency_ms: number | null;
@@ -426,6 +457,22 @@ export type CallbackRequest = {
   scheduled_for: string | null;
   status: "awaiting_confirmation" | "scheduled" | "completed" | "cancelled";
   created_at: string;
+  booking_status: string | null;
+  booking_delivery_mode: string | null;
+  booking_delivery_status: string | null;
+  booking_link: string | null;
+  booking_check_at: string | null;
+  booked_at: string | null;
+  retry_call_id: string | null;
+};
+
+export type BookingIntegrationStatus = {
+  calendly_configured: boolean;
+  sms_mode: "disabled" | "mock" | "twilio" | "textbee";
+  sms_live: boolean;
+  scheduler_mode: "disabled" | "inline" | "celery";
+  retry_delay_minutes: number;
+  demo_mode: boolean;
 };
 
 export type CampaignRun = {
@@ -451,6 +498,37 @@ export type HubSpotContactPage = {
 
 type ApiProblem = {
   detail?: string;
+};
+
+export type Subscription = {
+  plan: "starter" | "pro" | "enterprise";
+  status: "active" | "trialing" | "cancelled";
+  period_start: string;
+  period_end: string;
+  cancel_requested: boolean;
+  limits: {
+    leads_per_month: number;
+    calls_per_month: number;
+    campaigns: number;
+    team_members: number;
+    ai_minutes_per_month: number;
+    emails_per_month: number;
+  };
+  catalogue: Array<{
+    slug: string;
+    display_name: string;
+    price_inr: number;
+    billing_period: string;
+    limits: {
+      leads_per_month: number;
+      calls_per_month: number;
+      campaigns: number;
+      team_members: number;
+      ai_minutes_per_month: number;
+      emails_per_month: number;
+    };
+    features: string[];
+  }>;
 };
 
 const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:8000";
@@ -573,6 +651,14 @@ export async function getCallbacks(): Promise<CallbackRequest[]> {
   return apiFetch<CallbackRequest[]>("/api/v1/callbacks");
 }
 
+export async function getBookingIntegrationStatus(): Promise<BookingIntegrationStatus> {
+  return apiFetch<BookingIntegrationStatus>("/api/v1/booking-followups/status");
+}
+
 export async function getHubSpotContacts(): Promise<HubSpotContactPage> {
   return apiFetch<HubSpotContactPage>("/api/v1/integrations/hubspot/contacts?limit=25");
+}
+
+export async function getSubscription(): Promise<Subscription> {
+  return apiFetch<Subscription>("/api/v1/subscription");
 }

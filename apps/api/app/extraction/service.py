@@ -76,10 +76,15 @@ def extract_source(
     )
     adapter = DeterministicExtractionAdapter()
     result, latency_ms = adapter.extract(source.evidence_excerpt, observed_at=source.observed_at)
-    if not result.actionable and (
-        source.source_type == "exa_live_search"
-        or source.discovery_actionable is True
-        or (source.canonical_url and not source.canonical_url.startswith("fixture://"))
+    if (
+        not result.actionable
+        and source.opportunity_type != "hiring_signal"
+        and source.source_type != "indeed_snapshot"
+        and (
+            source.source_type == "exa_live_search"
+            or source.discovery_actionable is True
+            or (source.canonical_url and not source.canonical_url.startswith("fixture://"))
+        )
     ):
         summary = _extract_live_summary(source.evidence_excerpt)
         category = adapter._keyword_claim(

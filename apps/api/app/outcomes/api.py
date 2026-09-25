@@ -4,13 +4,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.auth import Auth
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.persistence.models import (
+    BookingFollowup,
     Call,
     HandoffTask,
     OutboxEvent,
@@ -56,6 +57,22 @@ class HandoffResponse(BaseModel):
     crm_sync_status: str
 
 
+class BookingFollowupResponse(BaseModel):
+    id: UUID
+    status: str
+    delivery_mode: str
+    delivery_status: str
+    calendly_link: str | None
+    link_sent_at: datetime | None
+    booking_check_at: datetime | None
+    booked_at: datetime | None
+    canceled_at: datetime | None
+    scheduled_start_at: datetime | None
+    retry_count: int
+    retry_call_id: UUID | None
+    last_error_code: str | None
+
+
 class CallDetailResponse(BaseModel):
     id: UUID
     lead_id: UUID
@@ -68,6 +85,7 @@ class CallDetailResponse(BaseModel):
     transcript: list[TranscriptSegmentResponse]
     qualification: QualificationResponse | None
     handoff: HandoffResponse | None
+    booking_followup: BookingFollowupResponse | None
 
 
 def _qualification_response(value: Qualification | None) -> QualificationResponse | None:
@@ -133,6 +151,15 @@ def get_call_detail(
             HandoffTask.call_id == call.id,
         )
     )
+    booking_followup = session.scalar(
+        select(BookingFollowup).where(
+            BookingFollowup.organization_id == auth.organization_id,
+            or_(
+                BookingFollowup.call_id == call.id,
+                BookingFollowup.retry_call_id == call.id,
+            ),
+        )
+    )
     sync_event = (
         session.scalar(
             select(OutboxEvent)
@@ -190,6 +217,25 @@ def get_call_detail(
                 crm_sync_status=sync_status,
             )
             if handoff
+            else None
+        ),
+        booking_followup=(
+            BookingFollowupResponse(
+                id=booking_followup.id,
+                status=booking_followup.status,
+                delivery_mode=booking_followup.delivery_mode,
+                delivery_status=booking_followup.delivery_status,
+                calendly_link=booking_followup.calendly_link,
+                link_sent_at=booking_followup.link_sent_at,
+                booking_check_at=booking_followup.booking_check_at,
+                booked_at=booking_followup.booked_at,
+                canceled_at=booking_followup.canceled_at,
+                scheduled_start_at=booking_followup.scheduled_start_at,
+                retry_count=booking_followup.retry_count,
+                retry_call_id=booking_followup.retry_call_id,
+                last_error_code=booking_followup.last_error_code,
+            )
+            if booking_followup
             else None
         ),
     )

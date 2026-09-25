@@ -34,8 +34,11 @@ or other sensitive data.
 Ask concise questions about need, current environment, scope, desired outcome, timeline, decision
 process, and whether a budget range is known. Preserve unknown answers as unknown. Answer only from
 the approved agent knowledge. Speak in English or Hindi according to the participant's preference.
-Before arranging follow-up, explicitly ask whether the participant wants a human specialist to call
-back. End politely after a recap.
+If the participant asks for a human, ask one combined but explicit question: "May I text you a
+Calendly link, and if you do not book, may we call you once more within 48 hours?" Call the
+`send-booking-link` tool only after the participant explicitly answers both parts. Read only the
+tool's `safe_agent_message`. Never read the URL aloud, invent delivery success, or call the tool
+after an unclear answer. End politely after a recap.
 ```
 
 Configure these extracted variables with conservative prompts:
@@ -47,6 +50,19 @@ Configure these extracted variables with conservative prompts:
 - `need`, `scope`, and `timeline`: participant-stated text or `unknown`.
 - `authority_known` and `budget_known`: `yes`, `no`, or `unknown`.
 - `callback_requested`: `confirmed`, `declined`, or `unknown`.
+- `sms_consent_confirmed`: `yes` only after explicit permission, otherwise `no` or `unknown`.
+- `booking_retry_consent_confirmed`: `yes` only after explicit one-retry permission, otherwise
+  `no` or `unknown`.
+
+Configure an OmniDimension custom function named `send-booking-link`:
+
+- Method: `POST`
+- URL: `<PUBLIC_API_BASE_URL>/api/v1/provider-tools/omnidim/send-booking-link`
+- Header: `X-Omnidim-Tool-Secret: <OMNIDIM_TOOL_SECRET>`
+- JSON body: `call_id`, `sms_consent_confirmed`, and `retry_consent_confirmed`
+
+The call ID is supplied in the dynamic call context. The function must not accept a phone number,
+organization ID, or booking URL.
 
 ## 3. Local configuration
 
@@ -59,7 +75,24 @@ OMNIDIM_API_KEY=<secret API key>
 OMNIDIM_AGENT_ID=<numeric agent ID>
 OMNIDIM_FROM_NUMBER_ID=<optional numeric number ID>
 OMNIDIM_TEST_TO_NUMBER=<consenting E.164 test number>
+PUBLIC_API_BASE_URL=<public HTTPS API origin>
+OMNIDIM_TOOL_SECRET=<separate high-entropy secret>
+CALENDLY_ACCESS_TOKEN=<secret token with scheduling_links:write>
+CALENDLY_EVENT_TYPE_URI=<existing Calendly event-type URI>
+CALENDLY_ORGANIZATION_URI=<Calendly organization URI>
+CALENDLY_WEBHOOK_SIGNING_KEY=<webhook signing secret>
+SMS_MODE=mock
+BOOKING_RETRY_DELAY_MINUTES=1440
+BOOKING_DEMO_MODE=true
+BOOKING_SCHEDULER_MODE=inline
 ```
+
+Create the Calendly webhook subscription as a separate deployment step for `invitee.created` and
+`invitee.canceled`, targeting
+`<PUBLIC_API_BASE_URL>/api/v1/webhooks/calendly`. Use the configured organization scope and store the
+returned signing key only in the deployment secret. For live SMS later, set `SMS_MODE=twilio`, add
+`TWILIO_MESSAGING_FROM_NUMBER`, and configure Twilio's incoming-message webhook to
+`<PUBLIC_API_BASE_URL>/api/v1/webhooks/twilio/sms`.
 
 Restart the API and web services. In **Campaigns**, approve the test lead, attest PSTN consent,
 prepare the real call, and click **Place real test call**. Open the call and use **Refresh provider
@@ -70,6 +103,8 @@ confirms interest or follow-up.
 ## 4. Readiness and fallback
 
 - Administration must show OmniDimension as configured before dispatch is enabled.
+- Integrations must show Calendly ready and `SMS mode: mock`; the call page must say that no SMS was
+  sent and exposes a copy-link operator action for the demo.
 - A 401/403 is configuration-required; a 429/5xx is temporary and remains operator-controlled.
 - If the request is not yet in the latest bounded call-log page, refresh later; no second call is
   dispatched.

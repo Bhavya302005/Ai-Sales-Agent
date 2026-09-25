@@ -68,11 +68,14 @@ def request_call(
     idempotency_key: str,
     settings: Settings,
     now: datetime | None = None,
+    consent_purpose: Literal[
+        "hackathon_demo_qualification", "calendly_booking_retry"
+    ] = "hackathon_demo_qualification",
 ) -> CallRequestResult:
     now = now or datetime.now(UTC)
     route = "POST:/api/v1/calls/requests"
     fingerprint = hashlib.sha256(
-        f"{lead_id}|{contact_id}|{campaign_id}|{transport}".encode()
+        f"{lead_id}|{contact_id}|{campaign_id}|{transport}|{consent_purpose}".encode()
     ).hexdigest()
     existing_key = session.scalar(
         select(IdempotencyRecord).where(
@@ -151,7 +154,7 @@ def request_call(
         campaign.status == "active"
         and campaign_lead
         and campaign_lead.approved_at
-        and campaign_lead.state in {"approved", "eligible"}
+        and campaign_lead.state in {"approved", "eligible", "retry_due"}
     )
     check(
         "campaign_approval",
@@ -193,7 +196,7 @@ def request_call(
             ConsentRecord.organization_id == organization_id,
             ConsentRecord.contact_id == contact.id,
             ConsentRecord.channel == consent_channel,
-            ConsentRecord.purpose == "hackathon_demo_qualification",
+            ConsentRecord.purpose == consent_purpose,
             ConsentRecord.status == "active",
             or_(ConsentRecord.expires_at.is_(None), ConsentRecord.expires_at > now),
         )
@@ -204,8 +207,7 @@ def request_call(
         consent
         and (
             contact.demo_test_contact
-            if transport == "browser"
-            else is_dialable_phone_ref(contact.identifier_encrypted_ref)
+            or is_dialable_phone_ref(contact.identifier_encrypted_ref)
         )
     )
     check(

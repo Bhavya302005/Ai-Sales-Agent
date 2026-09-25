@@ -13,6 +13,7 @@ const primaryNavigation: readonly [label: string, href: string][] = [
   ["Analytics", "/analytics"],
   ["Callbacks", "/callbacks"],
   ["Notifications", "/notifications"],
+  ["Subscription", "/subscription"],
   ["Administration", "/admin"],
 ];
 

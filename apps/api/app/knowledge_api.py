@@ -111,6 +111,16 @@ def _version_response(
             else None
         ),
         profile_source_count=len(stored_facts.get(PROFILE_SOURCES_KEY, [])),
+        profile_sources=[
+            ProfileSource(
+                label=str(src.get("label", "Source")),
+                kind=src.get("kind", "document") if src.get("kind") in ("website", "document", "user_input") else "document",
+                content_hash=str(src.get("content_hash", "0" * 64)),
+                excerpt=str(src.get("excerpt", "") or "Evidence source"),
+            )
+            for src in stored_facts.get(PROFILE_SOURCES_KEY, [])
+            if isinstance(src, dict)
+        ],
     )
 
 

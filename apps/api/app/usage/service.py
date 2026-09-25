@@ -62,14 +62,27 @@ def record_call_usage(
     tts_characters = sum(
         len(segment.text) for segment in segments if segment.speaker == "agent"
     )
+    call_provider = (
+        "omnidimension_voice"
+        if call.transport == "omnidim"
+        else "twilio_voice"
+        if call.transport == "twilio"
+        else "browser_voice"
+    )
+    actual_call_cost = (
+        (seconds / Decimal("60") * Decimal("7.00")).quantize(Decimal("0.01"))
+        if call.transport == "omnidim" and seconds > 0
+        else None
+    )
     record_usage_once(
         session,
         organization_id=call.organization_id,
         provider_event_id=f"{call.id}:call_seconds",
-        provider="browser_voice",
+        provider=call_provider,
         quantity=seconds,
         unit="call_seconds",
         estimated_cost_inr=reserved_cost,
+        actual_cost_inr=actual_call_cost,
         occurred_at=occurred_at,
     )
     record_usage_once(

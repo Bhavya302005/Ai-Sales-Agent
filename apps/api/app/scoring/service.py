@@ -230,11 +230,13 @@ def ensure_opportunity_and_score(
     company_id: UUID | None,
 ) -> tuple[Lead, ScoreSnapshot] | None:
     product = session.scalar(
-        select(Product).where(
+        select(Product)
+        .where(
             Product.organization_id == organization_id,
-            Product.workspace_id == workspace_id,
             Product.active_version_id.is_not(None),
         )
+        .order_by((Product.workspace_id == workspace_id).desc())
+        .limit(1)
     )
     if product is None or product.active_version_id is None:
         return None
@@ -257,7 +259,7 @@ def ensure_opportunity_and_score(
     if lead is None:
         lead = Lead(
             organization_id=organization_id,
-            workspace_id=workspace_id,
+            workspace_id=product.workspace_id or workspace_id,
             requirement_id=requirement.id,
             company_id=company_id,
             product_version_id=product_version.id,

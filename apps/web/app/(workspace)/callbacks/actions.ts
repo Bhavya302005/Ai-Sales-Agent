@@ -15,3 +15,11 @@ export async function updateCallback(formData: FormData) {
   });
   revalidatePath("/callbacks");
 }
+
+export async function sendBookingLink(formData: FormData) {
+  const callbackId = String(formData.get("callback_id") ?? "");
+  await apiFetch(`/api/v1/callbacks/${encodeURIComponent(callbackId)}/send-booking-link`, {
+    method: "POST",
+  });
+  revalidatePath("/callbacks");
+}

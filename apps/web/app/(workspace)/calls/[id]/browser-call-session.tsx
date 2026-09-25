@@ -67,6 +67,9 @@ export function BrowserCallSession({ callId, maxDuration }: { callId: string; ma
   const [conversationState, setConversationState] = useState("Permission");
   const [latency, setLatency] = useState<number | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
+  const [transcriptTurns, setTranscriptTurns] = useState<
+    Array<{ id: string; sequence: number; speaker: "agent" | "participant"; text: string }>
+  >([]);
   const [dialogueMode, setDialogueMode] = useState<
     "connecting" | "anthropic" | "gemini" | "deterministic"
   >("connecting");
@@ -384,13 +387,35 @@ export function BrowserCallSession({ callId, maxDuration }: { callId: string; ma
       }
       if (message.event === "agent.response" && message.text) {
         setAgentText(message.text);
+        const incomingAgentText = message.text;
+        setTranscriptTurns((prev) => [
+          ...prev,
+          {
+            id: `agent-${Date.now()}-${prev.length}`,
+            sequence: prev.length + 1,
+            speaker: "agent",
+            text: incomingAgentText,
+          },
+        ]);
         if (message.conversation_state) {
           conversationStateRef.current = message.conversation_state;
           setConversationState(message.conversation_state);
         }
         speak(message.text);
       }
-      if (message.event === "transcript.final" && message.text) setLiveText(message.text);
+      if (message.event === "transcript.final" && message.text) {
+        setLiveText(message.text);
+        const incomingParticipantText = message.text;
+        setTranscriptTurns((prev) => [
+          ...prev,
+          {
+            id: `participant-${Date.now()}-${prev.length}`,
+            sequence: prev.length + 1,
+            speaker: "participant",
+            text: incomingParticipantText,
+          },
+        ]);
+      }
       if (message.event === "session.completed") {
         terminalRef.current = true;
         setOutcome(message.outcome ?? "completed");
@@ -461,6 +486,35 @@ export function BrowserCallSession({ callId, maxDuration }: { callId: string; ma
         <div><span>Participant transcript</span><strong>{liveText}</strong></div>
         <div><span>Speech end → first audio</span><strong>{latency === null ? "—" : `${latency} ms`}</strong></div>
         <div><span>Outcome</span><strong>{outcome ?? "In progress"}</strong></div>
+      </section>
+      <section className="detail-panel transcript-panel" style={{ gridColumn: "1 / -1", marginTop: "8px" }}>
+        <div className="section-heading">
+          <div>
+            <p className="kicker">Live dialogue</p>
+            <h2>Live transcript</h2>
+          </div>
+          <span className="verified-pill" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <span className="active-profile-dot" /> {state}
+          </span>
+        </div>
+        <div className="transcript-list">
+          {transcriptTurns.length > 0 ? (
+            transcriptTurns.map((turn) => (
+              <article key={turn.id} className="transcript-row">
+                <div><span>{turn.speaker}</span><small>#{turn.sequence}</small></div>
+                <p>{turn.speaker === "agent" ? "Alex: " : "You: "}{turn.text}</p>
+              </article>
+            ))
+          ) : (
+            <article className="transcript-row" style={{ textAlign: "center", padding: "28px 16px" }}>
+              <p style={{ color: "var(--muted)", margin: 0 }}>
+                {state === "ready"
+                  ? "Click “Start AI call” to begin the voice session."
+                  : "Listening for speech… Live conversation turns will appear here as dialogue progresses."}
+              </p>
+            </article>
+          )}
+        </div>
       </section>
     </div>
   );

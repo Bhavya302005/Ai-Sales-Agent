@@ -436,6 +436,61 @@ class CallbackRequest(IdMixin, TenantMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False)
 
 
+class BookingFollowup(IdMixin, TenantMixin, TimestampMixin, Base):
+    __tablename__ = "booking_followups"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "call_id"),
+        UniqueConstraint("correlation_token"),
+        UniqueConstraint("organization_id", "calendly_invitee_uri"),
+        CheckConstraint(
+            "status IN ('prepared','delivery_pending','awaiting_booking','booked',"
+            "'canceled','retry_due','retry_dispatched','action_required')",
+            name="booking_followup_status",
+        ),
+        CheckConstraint(
+            "delivery_status IN ('pending','sent','simulated','failed','suppressed')",
+            name="booking_followup_delivery_status",
+        ),
+        CheckConstraint("retry_count >= 0 AND retry_count <= 1", name="booking_retry_count"),
+        Index("ix_booking_followups_due", "status", "booking_check_at"),
+    )
+
+    call_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    handoff_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("handoff_tasks.id", ondelete="SET NULL"), index=True
+    )
+    callback_request_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("callback_requests.id", ondelete="SET NULL"), index=True
+    )
+    campaign_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("campaigns.id", ondelete="SET NULL"), index=True
+    )
+    contact_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("contacts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    retry_call_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("calls.id", ondelete="SET NULL"), index=True
+    )
+    correlation_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    calendly_link: Mapped[str | None] = mapped_column(String(2048))
+    calendly_event_uri: Mapped[str | None] = mapped_column(String(500))
+    calendly_invitee_uri: Mapped[str | None] = mapped_column(String(500))
+    provider_message_id: Mapped[str | None] = mapped_column(String(200))
+    delivery_mode: Mapped[str] = mapped_column(String(30), nullable=False)
+    delivery_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="prepared")
+    retry_consent_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    link_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    booking_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    booked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scheduled_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error_code: Mapped[str | None] = mapped_column(String(100))
+
+
 class Notification(IdMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "notifications"
     __table_args__ = (

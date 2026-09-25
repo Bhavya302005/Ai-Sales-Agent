@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +11,17 @@ class Settings(BaseSettings):
 
     app_env: Literal["development", "test", "staging", "production"] = "development"
     database_url: str = "postgresql+psycopg://sales_agent:sales_agent@localhost:5432/sales_agent"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return "postgresql+psycopg://" + v[len("postgres://") :]
+            if v.startswith("postgresql://"):
+                return "postgresql+psycopg://" + v[len("postgresql://") :]
+        return v
+
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672//"
     discovery_mode: Literal["fixture", "live"] = "fixture"
     exa_discovery_mode: Literal["disabled", "mcp"] = "disabled"
@@ -56,6 +67,29 @@ class Settings(BaseSettings):
     hubspot_access_token: SecretStr | None = None
     web_origin: str = "http://localhost:3000"
     hubspot_api_version: Literal["2026-03"] = "2026-03"
+    # Email outreach (optional — disabled by default)
+    email_outreach_mode: Literal["disabled", "sendgrid", "smtp", "mock"] = "disabled"
+    sendgrid_api_key: SecretStr | None = None
+    email_from_address: str | None = None
+    email_from_name: str = "SignalPath"
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None
+    # Calendly handoff and consent-gated SMS delivery. Optional and honest by default.
+    calendly_access_token: SecretStr | None = None
+    calendly_event_type_uri: str | None = None
+    calendly_organization_uri: str | None = None
+    calendly_webhook_signing_key: SecretStr | None = None
+    public_api_base_url: str | None = None
+    omnidim_tool_secret: SecretStr | None = None
+    sms_mode: Literal["disabled", "mock", "twilio", "textbee"] = "disabled"
+    twilio_messaging_from_number: SecretStr | None = None
+    textbee_api_key: SecretStr | None = None
+    textbee_device_id: str | None = None
+    booking_retry_delay_minutes: int = Field(default=1440, ge=1, le=10080)
+    booking_demo_mode: bool = False
+    booking_scheduler_mode: Literal["disabled", "inline", "celery"] = "disabled"
 
     @model_validator(mode="after")
     def validate_selected_modes(self) -> "Settings":
@@ -118,6 +152,44 @@ class Settings(BaseSettings):
             raise ValueError("DIALOGUE_MODE=gemini requires GEMINI_API_KEY")
         if self.call_window_start_hour >= self.call_window_end_hour:
             raise ValueError("CALL_WINDOW_START_HOUR must be before CALL_WINDOW_END_HOUR")
+        if self.sms_mode == "twilio":
+            if not all(
+                (
+                    self.twilio_account_sid,
+                    self.twilio_auth_token,
+                    self.twilio_messaging_from_number,
+                )
+            ):
+                raise ValueError(
+                    "SMS_MODE=twilio requires TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, "
+                    "and TWILIO_MESSAGING_FROM_NUMBER"
+                )
+        if self.sms_mode == "textbee":
+            if not (self.textbee_api_key and self.textbee_device_id):
+                raise ValueError(
+                    "SMS_MODE=textbee requires TEXTBEE_API_KEY and TEXTBEE_DEVICE_ID"
+                )
+        for name, value, expected_host in (
+            ("CALENDLY_EVENT_TYPE_URI", self.calendly_event_type_uri, "api.calendly.com"),
+            ("CALENDLY_ORGANIZATION_URI", self.calendly_organization_uri, "api.calendly.com"),
+        ):
+            if value:
+                parsed = urlparse(value)
+                if parsed.scheme != "https" or parsed.hostname != expected_host:
+                    raise ValueError(f"{name} must be an official Calendly HTTPS URI")
+        if self.public_api_base_url:
+            parsed_public = urlparse(self.public_api_base_url)
+            if (
+                parsed_public.scheme != "https"
+                or not parsed_public.hostname
+                or parsed_public.username
+                or parsed_public.password
+                or parsed_public.path not in {"", "/"}
+                or parsed_public.params
+                or parsed_public.query
+                or parsed_public.fragment
+            ):
+                raise ValueError("PUBLIC_API_BASE_URL must be a public HTTPS origin without a path")
         is_live_environment = self.app_env in {"staging", "production"}
         uses_default_secret = self.jwt_secret.get_secret_value().startswith("local-development")
         if is_live_environment and uses_default_secret:

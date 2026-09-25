@@ -68,8 +68,11 @@ export function WorkspaceSidebar({ workspace, me, navigation }: WorkspaceSidebar
           </svg>
         </button>
 
-        <Link className="mobile-brand" href="/onboarding">
-          Signal<span>Path</span>
+        <Link className="mobile-brand" href="/onboarding" style={{ display: "flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 12h4l3-8 5 16 3-8h5" />
+          </svg>
+          <div style={{ color: "#000" }}>Signal<span style={{ color: "#000" }}>Path</span></div>
         </Link>
 
         <span className="mobile-workspace-pill" title={workspace.name}>
@@ -93,8 +96,11 @@ export function WorkspaceSidebar({ workspace, me, navigation }: WorkspaceSidebar
       >
         <div className="mobile-drawer-header">
           <div className="mobile-drawer-brand">
-            <Link className="brand" href="/onboarding" onClick={() => setIsOpen(false)}>
-              Signal<span>Path</span>
+            <Link className="brand" href="/onboarding" onClick={() => setIsOpen(false)} style={{ display: "flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 12h4l3-8 5 16 3-8h5" />
+              </svg>
+              <div style={{ color: "#000" }}>Signal<span style={{ color: "#000" }}>Path</span></div>
             </Link>
             <div className="workspace-label">
               <span>Workspace</span>
@@ -114,9 +120,11 @@ export function WorkspaceSidebar({ workspace, me, navigation }: WorkspaceSidebar
           </button>
         </div>
 
-        <PrimaryNav navigation={navigation} onSelect={() => setIsOpen(false)} />
+        {/* All navigation modules continuous */}
+        <PrimaryNav navigation={[...navigation, ...integrationsNav]} onSelect={() => setIsOpen(false)} />
 
         <div className="mobile-drawer-bottom">
+          {/* Promo block at last */}
           <div className="mobile-sidebar-promo">
             <div className="mobile-promo-header">
               <span className="mobile-promo-dot" />
@@ -124,8 +132,6 @@ export function WorkspaceSidebar({ workspace, me, navigation }: WorkspaceSidebar
             </div>
             <p>Every call stays consent-gated, transcript-backed, and human-owned.</p>
           </div>
-
-          <PrimaryNav navigation={integrationsNav} onSelect={() => setIsOpen(false)} />
 
           <div className="mobile-drawer-footer">
             <span className="mobile-drawer-role">Role: {me.role}</span>
@@ -141,21 +147,25 @@ export function WorkspaceSidebar({ workspace, me, navigation }: WorkspaceSidebar
       {/* Desktop Floating Sidebar (Preserved exactly as-is for desktop) */}
       <aside className="sidebar">
         <div className="sidebar-top">
-          <Link className="brand" href="/onboarding">
-            Signal<span>Path</span>
+          <Link className="brand" href="/onboarding" style={{ display: "flex", alignItems: "center", gap: "10px", textDecoration: "none" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 12h4l3-8 5 16 3-8h5" />
+            </svg>
+            <div style={{ color: "#000" }}>Signal<span style={{ color: "#000" }}>Path</span></div>
           </Link>
           <div className="workspace-label">
             <span>Workspace</span>
             <strong>{workspace.name}</strong>
           </div>
         </div>
-        <PrimaryNav navigation={navigation} />
+        {/* All navigation modules continuous */}
+        <PrimaryNav navigation={[...navigation, ...integrationsNav]} />
         <div className="sidebar-bottom">
+          {/* Promo block at last */}
           <div className="sidebar-promo">
             <p className="sidebar-promo-title">Evidence-first calling</p>
             <p className="sidebar-promo-copy">Every call stays consent-gated, transcript-backed, and human-owned.</p>
           </div>
-          <PrimaryNav navigation={integrationsNav} />
           <div className="sidebar-footer">
             <span>{me.role}</span>
             <form action={signOut}>

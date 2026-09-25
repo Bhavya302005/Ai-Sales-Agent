@@ -114,78 +114,68 @@ def _build_system_prompt(product_version: Any) -> str:
 
     company_description = product_version.description or ""
 
-    prompt = f"""You are a B2B lead generation specialist. Your job is to find real, high-intent leads for the company below.
+    prompt = f"""You are an elite B2B Enterprise Lead Intelligence Specialist and Procurement Opportunity Scout.
+Your sole mission is to identify real, verified companies that are actively seeking external vendors, partners, or consulting agencies to solve their commercial needs.
 
-== COMPANY PROFILE ==
-Description: {company_description}
+== CLIENT PROFILE (THE SOLUTION PROVIDER) ==
+Company: {facts.get('_company_name', 'Solution Provider')}
 Website: {company_url}
 Headquarters: {location}
 Technology Ecosystem: {ecosystem}
-{f"Compliance: {compliance}" if compliance else ""}
-
-== WEBSITE CONTENT ==
-{website_excerpt}
-
-== SALES OVERVIEW ==
-{sales_doc_excerpt}
-
-== SERVICES OFFERED ==
+Core Services Offered:
 {chr(10).join(f"- {s}" for s in services)}
+Company Overview: {company_description}
+{f"Compliance & Certifications: {compliance}" if compliance else ""}
+{f"Website Excerpt: {website_excerpt}" if website_excerpt else ""}
+{f"Sales Overview: {sales_doc_excerpt}" if sales_doc_excerpt else ""}
 
-== IDEAL CUSTOMER PROFILE ==
-Target Industries: {", ".join(industries)}
-Target Geographies: {", ".join(geographies)}
-Target Company Size: {", ".join(target_customers) if target_customers else "Mid-market to Enterprise (200-5000 employees)"}
-Core Needs We Solve:
+== TARGET IDEAL CUSTOMER PROFILE (ICP) ==
+Target Industries: {", ".join(industries) if industries else "Technology, Finance, Healthcare, Manufacturing, Retail"}
+Target Geographies: {", ".join(geographies) if geographies else "India, North America, Global"}
+Target Organization Size: {", ".join(target_customers) if target_customers else "Growth companies, Mid-Market, and Enterprises (50 to 5000+ employees)"}
+Specific Problems / Requirements We Solve:
 {chr(10).join(f"- {n}" for n in needs)}
 
-== DO NOT INCLUDE (Exclusions) ==
+== STRICT EXCLUSIONS ==
 {chr(10).join(f"- {e}" for e in exclusions)}
+- Aggregator and directory portals (Clutch, GoodFirms, G2, Yelp, ZoomInfo, DesignRush)
+- Individuals posting resumes, portfolios, or looking for jobs/employment
+- Agencies or service providers promoting or advertising their OWN capabilities
+- Listicles and generic blog roundups (e.g., "Top 10 software companies")
 
-== YOUR TASK ==
-Search LinkedIn posts/profiles, Twitter/X, Reddit, Upwork, freelancer boards, RFP/tender boards, and company websites.
-Find REAL companies or decision-makers who are ACTIVELY looking to buy services we offer.
-
-STRICT RULES:
-1. Only include COMPANIES buying services — NOT individuals seeking employment
-2. Must match at least one target industry or geography
-3. Must show clear buying intent (see signals below)
-4. Only return leads with fit_score >= 50
-5. Include email/phone only if publicly visible on the page
-
-HIGH INTENT signals (include these):
-- "Looking for a partner/vendor/agency/consulting firm"
-- "RFP / Request for Proposal / Tender"
-- "Need help with [service we offer]"
-- "Evaluating vendors" / "DMs open" / "Reach out if you can help"
-- "Hiring a consulting firm" or "outsourcing to agency"
-
-EXCLUDE (no intent):
-- Individuals posting their resume or portfolio
-- Thought leadership posts with no buying call-to-action
-- Companies advertising their OWN services
-- Job seekers / freelancers looking for work"""
+== QUALIFICATION AND ACCURACY PROTOCOL ==
+1. BUYER VERIFICATION: The company_name MUST be the BUYING organization that needs the service. Never set company_name to a social media handle, an agency pitching services, or a blog site.
+2. BUYING INTENT: The lead must show verifiable commercial intent:
+   - Active Request for Proposal (RFP), tender, or bid notice
+   - Executive/Founder/Procurement post explicitly stating "looking for a vendor/partner/agency to help us build/migrate/audit..."
+   - Project posting on professional freelance/contract networks with verified enterprise budget
+   - Organizational initiative announcing a technology modernization or outsourcing project
+3. EVIDENCE PROVENANCE: The requirement and buying_intent_signal fields must contain factual, verifiable excerpts from the source URL.
+4. FIT SCORE: Rate 0-100 based strictly on industry match, geography match, and explicit budget/need alignment. Return only leads with fit_score >= 60.
+5. CONTACT GROUNDING: If an executive, founder, or project owner is mentioned in the post, capture their contact_name and contact_title. Otherwise leave as null. Do not invent fictitious contact details."""
 
     return prompt
 
 
 def _build_query(product_version: Any) -> str:
-    """Build the agent search query from the product ICP."""
+    """Build an in-depth agent search query targeting active commercial demand."""
     icp = product_version.icp if isinstance(product_version.icp, dict) else {}
     needs = icp.get("needs", [])
     industries = icp.get("industries", [])
     geographies = icp.get("geographies", [])
 
     primary_service = needs[0] if needs else product_version.description[:100]
+    secondary_services = ", ".join(needs[1:4]) if len(needs) > 1 else primary_service
     industry_str = " or ".join(industries[:3]) if industries else "enterprise"
     geo_str = " or ".join(geographies[:2]) if geographies else "India"
 
     return (
-        f"Find companies in {industry_str} industries located in {geo_str} "
-        f"that are actively seeking a partner, agency, or vendor for: {primary_service}. "
-        f"Also search for related needs: {', '.join(needs[1:4])}. "
-        f"Search LinkedIn, Twitter, Reddit, Upwork, RFP boards, and company websites. "
-        f"Return structured lead data with company name, contact, requirement, and buying intent signal."
+        f"Find corporate buyers, enterprises, and funded startups in {industry_str} located in {geo_str} "
+        f"that have an active commercial need or are actively seeking an external agency, implementation partner, or vendor for: {primary_service}. "
+        f"Related requirements to consider: {secondary_services}. "
+        f"Search executive LinkedIn posts, corporate procurement RFPs, verified client project bids, and company announcements. "
+        f"Strictly exclude agencies advertising their own services, directory sites, and individual job seekers. "
+        f"Return verified company names, requirement details, source URLs, and buying intent rationale."
     )
 
 
@@ -218,23 +208,26 @@ def run_exa_agent(
             output_schema=LEAD_OUTPUT_SCHEMA,
         )
         
-        # Step 2: Poll until finished (using SDK built-in)
-        completed_run = exa.agent.runs.poll_until_finished(run.id, timeout=_AGENT_TIMEOUT)
+        # Step 2: Poll until finished (using SDK built-in timeout_ms)
+        completed_run = exa.agent.runs.poll_until_finished(
+            run.id, timeout_ms=int(_AGENT_TIMEOUT * 1000)
+        )
         
         if completed_run.status == "completed" and completed_run.output:
             structured = completed_run.output.structured
             if isinstance(structured, str):
                 structured = json.loads(structured)
                 
-            leads = structured.get("leads", [])
+            leads = structured.get("leads", []) if isinstance(structured, dict) else []
             qualified = [
                 lead for lead in leads
                 if isinstance(lead, dict) and lead.get("fit_score", 0) >= 50
             ]
             return qualified[:max_leads]
             
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Exa agent run failed: %s", exc)
 
     return []
 

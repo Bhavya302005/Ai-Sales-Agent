@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.business_profile import ProfileSource
+
 
 class ICPDefinition(BaseModel):
     geographies: list[str] = Field(min_length=1, max_length=20)
@@ -69,6 +71,7 @@ class OfferingVersionResponse(BaseModel):
     target_customers: list[str] = []
     analysis_method: str | None = None
     profile_source_count: int = 0
+    profile_sources: list[ProfileSource] = []
 
 
 class OfferingResponse(BaseModel):

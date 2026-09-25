@@ -118,6 +118,15 @@ export function VoiceIcon({ className }: IconProps) {
   );
 }
 
+export function SubscriptionIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="1" y="4" width="22" height="16" rx="2" />
+      <path d="M1 10h22" />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
@@ -138,4 +147,5 @@ export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> 
   "/settings/integrations": IntegrationsIcon,
   "/admin": AdminIcon,
   "/voice-lab": VoiceIcon,
+  "/subscription": SubscriptionIcon,
 };

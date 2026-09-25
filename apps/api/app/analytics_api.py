@@ -52,8 +52,18 @@ class UsageTotal(BaseModel):
     actual_cost_inr: Decimal | None
 
 
+class ProviderBreakdown(BaseModel):
+    provider: str
+    label: str
+    unit: str
+    quantity: Decimal
+    cost_inr: Decimal
+    details: str
+
+
 class UsageResponse(BaseModel):
     totals: list[UsageTotal]
+    providers: list[ProviderBreakdown] = []
     total_estimated_cost_inr: Decimal
     total_actual_cost_inr: Decimal | None
     average_voice_latency_ms: int | None
@@ -229,8 +239,54 @@ def get_usage(
             OutboxEvent.event_type == "crm.sync_requested.v1",
         )
     ).all()
+
+    # OmniDimension Voice AI Usage
+    omnidim_calls = session.scalars(
+        select(Call).where(
+            Call.organization_id == auth.organization_id,
+            Call.transport == "omnidim",
+        )
+    ).all()
+    omnidim_seconds = sum(
+        (int(call.usage.get("actual_call_seconds", 0)) for call in omnidim_calls), 0
+    )
+    omnidim_minutes = (Decimal(omnidim_seconds) / Decimal("60")).quantize(Decimal("0.1"))
+    omnidim_cost = (Decimal(omnidim_seconds) / Decimal("60") * Decimal("7.00")).quantize(Decimal("0.01"))
+
+    # Exa Lead Discovery Usage
+    exa_docs_count = (
+        session.scalar(
+            select(func.count(SourceDocument.id)).where(
+                SourceDocument.organization_id == auth.organization_id,
+                SourceDocument.source_type.in_(["exa_live_search", "exa_agent", "exa_web_search"]),
+            )
+        )
+        or 0
+    )
+    exa_cost = (Decimal(exa_docs_count) * Decimal("0.25")).quantize(Decimal("0.01"))
+
+    providers: list[ProviderBreakdown] = [
+        ProviderBreakdown(
+            provider="omnidimension",
+            label="OmniDimension Voice AI",
+            unit="minutes",
+            quantity=omnidim_minutes,
+            cost_inr=omnidim_cost,
+            details=f"{len(omnidim_calls)} call(s) dispatched · {omnidim_seconds}s active call time · ₹7.00/min rate",
+        ),
+        ProviderBreakdown(
+            provider="exa",
+            label="Exa Semantic Discovery",
+            unit="leads",
+            quantity=Decimal(exa_docs_count),
+            cost_inr=exa_cost,
+            details=f"{exa_docs_count} candidate lead(s) analyzed · neural search active · ₹0.25/lead rate",
+        ),
+    ]
+
     return UsageResponse(
         totals=totals,
+        providers=providers,
         total_estimated_cost_inr=sum(
             (event.estimated_cost_inr for event in events), start=Decimal("0")
         ),
@@ -240,7 +296,7 @@ def get_usage(
                 start=Decimal("0"),
             )
             if any(event.actual_cost_inr is not None for event in events)
-            else None
+            else (omnidim_cost + exa_cost if (omnidim_cost + exa_cost) > Decimal("0") else None)
         ),
         average_voice_latency_ms=(
             round(sum(latency_samples) / len(latency_samples)) if latency_samples else None

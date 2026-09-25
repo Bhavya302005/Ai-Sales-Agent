@@ -17,6 +17,7 @@ function failedCall(overrides: Partial<CallDetail> = {}): CallDetail {
     transcript: [],
     qualification: null,
     handoff: null,
+    booking_followup: null,
     ...overrides,
   };
 }

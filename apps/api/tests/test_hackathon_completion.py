@@ -25,6 +25,7 @@ def _client(database_path: Path) -> Generator[tuple[TestClient, Settings, Sessio
         twilio_test_to_number="+919876543210",
         call_window_start_hour=0,
         call_window_end_hour=24,
+        exa_discovery_mode="disabled",
     )
     engine = create_engine(database_url)
     Base.metadata.create_all(engine)

@@ -48,3 +48,5 @@ Status values: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`.
 | P10 | DONE | Tab-scoped draft persistence restores all text evidence after reload/remount; browser verification confirms values also survive completed analysis |
 | C03 | DONE | Make consent-attested CSV/XLSX contacts securely dialable through the selected PSTN provider without exposing raw phone data |
 | P11 | DONE | Unify discovery into Leads page with Exa refresh, search/filters bar, clickable post URLs, and verified phone numbers for all discovered leads |
+| S01b | DONE | Subscription page: plan overview, live usage meters, pricing grid, billing section, nav integration |
+| C04 | DONE | Consent-gated Calendly link preparation, honest mock/live SMS adapters, signed booking tracking, suppression-safe callbacks, and exactly one eligibility-checked OmniDimension re-call; focused backend/browser and full backend suites pass |

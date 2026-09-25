@@ -10,10 +10,12 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth import Auth
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.notifications import notify_roles
 from app.persistence.models import (
     AuditLog,
+    BookingFollowup,
     Call,
     CallbackRequest,
     Campaign,
@@ -41,6 +43,8 @@ class ProcessDueResponse(BaseModel):
     runs_ready: int
     retries_ready: int
     attempts_exhausted: int
+    booking_retries_dispatched: int = 0
+    booking_retries_action_required: int = 0
 
 
 class CallbackResponse(BaseModel):
@@ -52,6 +56,13 @@ class CallbackResponse(BaseModel):
     scheduled_for: datetime | None
     status: str
     created_at: datetime
+    booking_status: str | None = None
+    booking_delivery_mode: str | None = None
+    booking_delivery_status: str | None = None
+    booking_link: str | None = None
+    booking_check_at: datetime | None = None
+    booked_at: datetime | None = None
+    retry_call_id: UUID | None = None
 
 
 class CallbackUpdate(BaseModel):
@@ -94,7 +105,13 @@ def _run_response(row: CampaignRun) -> CampaignRunResponse:
     )
 
 
-def _callback_response(row: CallbackRequest) -> CallbackResponse:
+def _callback_response(session: Session, row: CallbackRequest) -> CallbackResponse:
+    booking = session.scalar(
+        select(BookingFollowup).where(
+            BookingFollowup.organization_id == row.organization_id,
+            BookingFollowup.callback_request_id == row.id,
+        )
+    )
     return CallbackResponse(
         id=row.id,
         call_id=row.call_id,
@@ -104,10 +121,19 @@ def _callback_response(row: CallbackRequest) -> CallbackResponse:
         scheduled_for=row.scheduled_for,
         status=row.status,
         created_at=row.created_at,
+        booking_status=booking.status if booking else None,
+        booking_delivery_mode=booking.delivery_mode if booking else None,
+        booking_delivery_status=booking.delivery_status if booking else None,
+        booking_link=booking.calendly_link if booking else None,
+        booking_check_at=booking.booking_check_at if booking else None,
+        booked_at=booking.booked_at if booking else None,
+        retry_call_id=booking.retry_call_id if booking else None,
     )
 
 
-def process_due_campaigns(session: Session, *, now: datetime | None = None) -> ProcessDueResponse:
+def process_due_campaigns(
+    session: Session, *, now: datetime | None = None, settings: Settings | None = None
+) -> ProcessDueResponse:
     now = _aware(now or datetime.now(UTC)).astimezone(UTC)
     runs_ready = retries_ready = attempts_exhausted = 0
     campaigns = session.scalars(select(Campaign).where(Campaign.status == "active")).all()
@@ -273,10 +299,19 @@ def process_due_campaigns(session: Session, *, now: datetime | None = None) -> P
                     dedupe_key=f"retry-due:{latest_call.id}",
                 )
     session.commit()
+    from app.booking_followups.service import process_due_booking_retries
+
+    booking = process_due_booking_retries(
+        session,
+        settings=settings or get_settings(),
+        now=now,
+    )
     return ProcessDueResponse(
         runs_ready=runs_ready,
         retries_ready=retries_ready,
         attempts_exhausted=attempts_exhausted,
+        booking_retries_dispatched=booking.dispatched,
+        booking_retries_action_required=booking.action_required,
     )
 
 
@@ -294,7 +329,7 @@ def process_due(
         category="campaign-operations",
         limit=10,
     )
-    result = process_due_campaigns(session)
+    result = process_due_campaigns(session, settings=get_settings())
     session.add(
         AuditLog(
             organization_id=auth.organization_id,
@@ -393,7 +428,7 @@ def list_callbacks(
         .where(CallbackRequest.organization_id == auth.organization_id)
         .order_by(CallbackRequest.created_at.desc())
     ).all()
-    return [_callback_response(row) for row in rows]
+    return [_callback_response(session, row) for row in rows]
 
 
 @router.patch("/callbacks/{callback_id}", response_model=CallbackResponse)
@@ -439,4 +474,83 @@ def update_callback(
         )
     )
     session.commit()
-    return _callback_response(row)
+    return _callback_response(session, row)
+
+
+@router.post("/callbacks/{callback_id}/send-booking-link", response_model=CallbackResponse)
+def send_callback_booking_link(
+    callback_id: UUID,
+    request: Request,
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+) -> CallbackResponse:
+    if auth.role not in {"owner", "operator"}:
+        raise HTTPException(status_code=403, detail="Editor role required")
+    enforce_rate_limit(
+        session,
+        identity=f"{auth.organization_id}:{auth.user_id}",
+        category="callback-operations",
+        limit=10,
+    )
+    row = session.scalar(
+        select(CallbackRequest).where(
+            CallbackRequest.id == callback_id,
+            CallbackRequest.organization_id == auth.organization_id,
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Callback not found")
+        
+    call = session.scalar(
+        select(Call).where(Call.id == row.call_id)
+    )
+    if not call:
+        raise HTTPException(status_code=404, detail="Original call not found")
+
+    from uuid import uuid4
+    from app.jobs.service import enqueue_once
+    
+    settings = get_settings()
+    
+    # Check if one already exists
+    existing = session.scalar(
+        select(BookingFollowup).where(
+            BookingFollowup.organization_id == auth.organization_id,
+            BookingFollowup.call_id == call.id,
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="A booking link was already requested for this call")
+
+    followup = BookingFollowup(
+        organization_id=call.organization_id,
+        call_id=call.id,
+        campaign_id=call.campaign_id,
+        contact_id=call.contact_id,
+        callback_request_id=callback_id,
+        correlation_token=uuid4().hex,
+        delivery_mode=settings.sms_mode,
+        delivery_status="pending",
+        status="delivery_pending",
+        retry_consent_confirmed=False,
+        retry_count=0,
+    )
+    session.add(followup)
+    session.flush()
+    
+    enqueue_once(
+        session,
+        organization_id=call.organization_id,
+        actor_id=auth.user_id,
+        route="POST:/api/v1/provider-tools/omnidim/send-booking-link",
+        idempotency_key=f"manual-booking-link:{call.id}",
+        event_type="booking.link_send_requested.v1",
+        aggregate_type="booking_followup",
+        aggregate_id=followup.id,
+        payload_ref=f"booking_followup:{followup.id}",
+    )
+    
+    session.commit()
+    # Refresh row to get the updated booking status
+    session.refresh(row)
+    return _callback_response(session, row)

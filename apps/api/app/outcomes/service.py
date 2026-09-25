@@ -35,6 +35,8 @@ POSITIVE_INTEREST = (
     "set up a meeting",
     "दिलचस्पी",
     "विशेषज्ञ से",
+    "human handoff",
+    "હ્યુમન હેન્ડઓફ",
 )
 NEGATIVE_INTEREST = ("not interested", "no interest", "रुचि नहीं")
 PRICING_OR_COMMITMENT = (
@@ -67,6 +69,7 @@ YES_ANSWERS = (
     "હા",
     "હા છે",
     "હા અમ",
+    "ઓકે",
 )
 NO_ANSWERS = ("no", "nope", "not me", "नहीं", "ના")
 
@@ -112,6 +115,12 @@ INTEREST_QUESTIONS = (
     "વિશેષજ્ઞ",
     "ઈચ્છા",
     "આગળની ચર્ચા",
+    "calendly",
+    "book",
+    "બુક",
+    "કૉલ કરીશ",
+    "human handoff",
+    "હ્યુમન હેન્ડઓફ",
 )
 CALLBACK_TIMING_QUESTIONS = (
     "which day",
@@ -167,7 +176,8 @@ def _derive_fields(segments: list[TranscriptSegment]) -> dict[str, Any]:
         if segment.speaker != "participant":
             continue
         text = segment.text.strip()
-        normalized = " ".join(re.sub(r"[^\w\u0900-\u097f]+", " ", text.casefold()).split())
+        # Allow Devanagari (\u0900-\u097f) and Gujarati (\u0A80-\u0AFF) blocks
+        normalized = " ".join(re.sub(r"[^\w\u0900-\u097f\u0A80-\u0AFF]+", " ", text.casefold()).split())
         padded = f" {normalized} "
         raw_folded = text.casefold().strip(" .,!?:;।")
         affirmative = any(
@@ -475,6 +485,10 @@ def finalize_completed_call(
     ).all()
     for cl in campaign_leads:
         cl.state = new_lifecycle
+
+    from app.booking_followups.service import attach_finalized_handoff
+
+    attach_finalized_handoff(session, call_id=call.id, organization_id=organization_id)
 
     return FinalizationResult(
         qualification=qualification,

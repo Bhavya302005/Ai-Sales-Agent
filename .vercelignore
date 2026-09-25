@@ -1,0 +1,7 @@
+job_scraper/
+node_modules/
+.venv/
+.next/
+apps/web/.next/
+.mypy_cache/
+apps/api/.mypy_cache/

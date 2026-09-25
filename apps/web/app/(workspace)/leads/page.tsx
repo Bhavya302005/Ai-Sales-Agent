@@ -6,6 +6,7 @@ import { diagnosticsEnabled } from "@/lib/runtime";
 
 import { refreshLeads } from "./actions";
 import { LeadsExplorer } from "./leads-explorer";
+import { RefreshLeadsButton } from "./refresh-leads-button";
 
 type Search = Promise<{
   q?: string;
@@ -87,12 +88,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
         </div>
         <div className="source-controls">
           <form action={refreshLeads}>
-            <button className="leads-action-btn primary" type="submit">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-              </svg>
-              Refresh leads
-            </button>
+            <RefreshLeadsButton />
           </form>
           <Link className="leads-action-btn secondary" href="/campaigns">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

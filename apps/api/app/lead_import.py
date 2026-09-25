@@ -55,6 +55,7 @@ FIELDS = (
     "location",
     "timezone",
     "consent_basis",
+    "email",
 )
 
 
@@ -260,7 +261,7 @@ async def import_leads(
                     discovery_location=row["location"][:300] or None,
                     opportunity_type="direct_requirement",
                     discovery_actionable=True,
-                    provider_metadata={"import": suffix, "consent_basis": row["consent_basis"]},
+                    provider_metadata={"import": suffix, "consent_basis": row["consent_basis"], "email": row.get("email")},
                 ),
                 content=content_text.encode(),
             ),
@@ -352,6 +353,25 @@ async def import_leads(
                     state="pending_review",
                 )
             )
+        
+        # Save the imported email as a FieldAssertion so other automations can use it
+        if row.get("email"):
+            from app.persistence.models import FieldAssertion
+            session.add(
+                FieldAssertion(
+                    organization_id=auth.organization_id,
+                    entity_type="lead",
+                    entity_id=lead.id,
+                    field_name="email",
+                    value={"email": row["email"]},
+                    source_document_id=ingestion.document.id,
+                    extraction_method="client_import",
+                    confidence=1.0,
+                    observed_at=datetime.now(UTC),
+                    status="verified",
+                )
+            )
+            
         imported += 1
         session.add(
             AuditLog(

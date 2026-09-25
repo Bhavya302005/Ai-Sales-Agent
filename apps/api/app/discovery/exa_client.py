@@ -41,11 +41,12 @@ def _exa_api_search(
     num_results: int = 8,
     include_domains: list[str] | None = None,
     start_published_date: str | None = None,
-    use_autoprompt: bool = False,
+    use_autoprompt: bool = True,
 ) -> str:
     """Direct Exa REST API call (used only when EXA_API_KEY is present)."""
     payload: dict[str, Any] = {
         "query": query,
+        "type": "neural",
         "numResults": num_results,
         "contents": {
             "text": {"maxCharacters": 2000},

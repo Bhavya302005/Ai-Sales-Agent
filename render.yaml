@@ -59,6 +59,26 @@ services:
         sync: false
       - key: OMNIDIM_API_KEY
         sync: false
+      - key: PUBLIC_API_BASE_URL
+        value: "https://ai-sales-agent-api.onrender.com"
+      - key: CALENDLY_ACCESS_TOKEN
+        sync: false
+      - key: CALENDLY_EVENT_TYPE_URI
+        sync: false
+      - key: CALENDLY_ORGANIZATION_URI
+        sync: false
+      - key: CALENDLY_WEBHOOK_SIGNING_KEY
+        sync: false
+      - key: OMNIDIM_TOOL_SECRET
+        generateValue: true
+      - key: SMS_MODE
+        value: mock
+      - key: BOOKING_RETRY_DELAY_MINUTES
+        value: "1440"
+      - key: BOOKING_DEMO_MODE
+        value: "true"
+      - key: BOOKING_SCHEDULER_MODE
+        value: inline
       - key: GEMINI_API_KEY
         sync: false
       - key: SUPABASE_URL

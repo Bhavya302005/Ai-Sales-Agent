@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { apiFetch, type Call, type Campaign, type LeadImportResponse } from "@/lib/api";
 
@@ -98,24 +99,69 @@ export async function requestPstnCall(formData: FormData) {
   if (formData.get("consent_attested") !== "on") {
     throw new Error("Confirm the contact's call consent first");
   }
-  await apiFetch(`/api/v1/contacts/${contactId}/pstn-consent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ attested: true }),
-  });
-  await apiFetch<Call>("/api/v1/calls/requests", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Idempotency-Key": String(formData.get("idempotency_key") ?? ""),
-    },
-    body: JSON.stringify({ campaign_id: campaignId, lead_id: leadId, contact_id: contactId, transport }),
-  });
+  try {
+    await apiFetch(`/api/v1/contacts/${contactId}/pstn-consent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attested: true }),
+    });
+    await apiFetch<Call>("/api/v1/calls/requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": String(formData.get("idempotency_key") ?? ""),
+      },
+      body: JSON.stringify({ campaign_id: campaignId, lead_id: leadId, contact_id: contactId, transport }),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not prepare call";
+    redirect(`/campaigns?call_error=${encodeURIComponent(message)}`);
+  }
   revalidatePath("/campaigns");
 }
 
 export async function dispatchPstnCall(formData: FormData) {
   const callId = id(formData, "call_id");
-  await apiFetch<Call>(`/api/v1/calls/${callId}/dispatch`, { method: "POST" });
+  try {
+    await apiFetch<Call>(`/api/v1/calls/${callId}/dispatch`, { method: "POST" });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Outbound call dispatch failed";
+    redirect(`/campaigns?call_error=${encodeURIComponent(message)}`);
+  }
   revalidatePath("/campaigns");
 }
+
+export async function deleteCampaign(formData: FormData) {
+  const campaignId = id(formData, "campaign_id");
+  try {
+    await apiFetch(`/api/v1/campaigns/${campaignId}`, { method: "DELETE" });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to delete campaign";
+    redirect(`/campaigns?call_error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath("/campaigns");
+}
+
+export async function removeCampaignLeads(formData: FormData) {
+  const campaignId = id(formData, "campaign_id");
+  try {
+    await apiFetch(`/api/v1/campaigns/${campaignId}/leads`, { method: "DELETE" });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to remove leads from campaign";
+    redirect(`/campaigns?call_error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath("/campaigns");
+}
+
+export async function removeCampaignLead(formData: FormData) {
+  const campaignId = id(formData, "campaign_id");
+  const leadId = id(formData, "lead_id");
+  try {
+    await apiFetch(`/api/v1/campaigns/${campaignId}/leads/${leadId}`, { method: "DELETE" });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to remove lead from campaign";
+    redirect(`/campaigns?call_error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath("/campaigns");
+}
+

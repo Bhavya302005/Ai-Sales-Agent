@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Inbox Scanner - AI Job Mailer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            backdrop-filter: blur(12px);
+            background: rgba(15, 23, 42, 0.8);
+        }
+        .luminous-glow {
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+        }
+        .active-glow {
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.25);
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-low": "#191c1e",
+                    "surface-container": "#1d2022",
+                    "surface": "#101415",
+                    "inverse-primary": "#494bd6",
+                    "primary": "#c0c1ff",
+                    "on-surface-variant": "#c7c4d7",
+                    "on-secondary-container": "#c4abff",
+                    "on-primary-fixed-variant": "#2f2ebe",
+                    "background": "#101415",
+                    "surface-tint": "#c0c1ff",
+                    "tertiary": "#bec6e0",
+                    "surface-container-highest": "#323537",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "secondary-container": "#571bc1",
+                    "on-error": "#690005",
+                    "on-secondary-fixed": "#23005c",
+                    "surface-dim": "#101415",
+                    "primary-fixed-dim": "#c0c1ff",
+                    "tertiary-fixed": "#dae2fd",
+                    "surface-bright": "#363a3b",
+                    "on-surface": "#e0e3e5",
+                    "on-primary-container": "#0d0096",
+                    "inverse-surface": "#e0e3e5",
+                    "error": "#ffb4ab",
+                    "on-tertiary-fixed": "#131b2e",
+                    "secondary-fixed-dim": "#d0bcff",
+                    "on-tertiary": "#283044",
+                    "secondary": "#d0bcff",
+                    "on-secondary": "#3c0091",
+                    "surface-container-lowest": "#0b0f10",
+                    "on-tertiary-fixed-variant": "#3f465c",
+                    "on-primary-fixed": "#07006c",
+                    "primary-fixed": "#e1e0ff",
+                    "error-container": "#93000a",
+                    "tertiary-fixed-dim": "#bec6e0",
+                    "on-error-container": "#ffdad6",
+                    "surface-container-high": "#272a2c",
+                    "outline-variant": "#464554",
+                    "inverse-on-surface": "#2d3133",
+                    "surface-variant": "#323537",
+                    "secondary-fixed": "#e9ddff",
+                    "on-background": "#e0e3e5",
+                    "primary-container": "#8083ff",
+                    "tertiary-container": "#8990a8",
+                    "outline": "#908fa0",
+                    "on-tertiary-container": "#22293d",
+                    "on-primary": "#1000a9"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-sm": "8px",
+                    "container-padding-mobile": "16px",
+                    "stack-md": "16px",
+                    "base": "8px",
+                    "gutter": "24px",
+                    "stack-lg": "32px",
+                    "container-padding-desktop": "32px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "body-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md overflow-x-hidden">
+<!-- Top Navigation Bar (Mobile only) -->
+<header class="flex justify-between items-center px-container-padding-mobile h-16 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant w-full top-0 sticky lg:hidden">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">menu</span>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary">AI Job Mailer</span>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline">
+<img alt="User" data-alt="A professional close-up studio portrait of a successful tech executive with a clean-cut appearance. The lighting is sophisticated and moody, consistent with a high-tech minimalist dark mode aesthetic. The background is a soft-focus office environment with deep blue and purple ambient tones, emphasizing a sense of corporate leadership and intelligence." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7R9ysgkyNKyZGNrmJ2_YfJRTic7ObBFQe9JTy-ArobxBNrgTa7L6P6iJFmwXfd-ugojJLenMfga98hIuecQqZh4eU08vedKOC0-EdWTlvrgtn2lg1dVBpExv2atwO9cVRUPNe7HmKvd6UCuV9ZE3eOIzMf7cxKC7dFMuYPkw5HDNRv2jKj562vFfS8Oi93d-jBkeaeTdNG4f0yJNXBhsCzD-zmCKsX4b0vU3pjjOPzO8EgCtR9BiIta6dleiEy9m5otIqyH2b2p80"/>
+</div>
+</header>
+<div class="flex min-h-screen">
+<!-- Desktop Navigation Drawer -->
+<aside class="hidden lg:flex flex-col h-screen py-stack-lg h-full w-80 fixed left-0 top-0 bg-surface-container dark:bg-surface-container shadow-lg z-50">
+<div class="px-6 mb-stack-lg">
+<span class="font-headline-md text-headline-md font-bold text-primary">AI Job Mailer</span>
+</div>
+<div class="flex flex-col gap-1 px-2">
+<a class="text-on-surface-variant dark:text-on-surface-variant px-4 py-3 mx-2 flex items-center gap-3 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-full transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+<span class="font-body-md">Auto Agent</span>
+</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant px-4 py-3 mx-2 flex items-center gap-3 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-full transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="send">send</span>
+<span class="font-body-md">Outreach</span>
+</a>
+<a class="bg-secondary-container dark:bg-secondary-container text-on-secondary-container dark:text-on-secondary-container rounded-full px-4 py-3 mx-2 flex items-center gap-3 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="move_to_inbox" style="font-variation-settings: 'FILL' 1;">move_to_inbox</span>
+<span class="font-body-md">Inbox Scanner</span>
+</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant px-4 py-3 mx-2 flex items-center gap-3 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-full transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-body-md">Resume</span>
+</a>
+</div>
+<div class="mt-auto px-6 pt-stack-lg border-t border-outline-variant flex items-center gap-4">
+<img alt="Alex Sterling" class="w-10 h-10 rounded-full border border-outline" data-alt="A cinematic portrait of Alex Sterling, a professional in his late 30s with a confident expression, set against a dark background with subtle indigo lens flares. The image uses a shallow depth of field and high-contrast lighting to convey a premium, executive feel, aligned with a corporate AI tech aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBR8ix98TLe77-p4sGS-Q0Z62l-WthNXLcwFiye_kcFAZD5X81elfZ9OzoLaOFmjB15kTS61aGKf7j9Bqfzaujb11S3MlcFk41msECStI1EO3L1JMS_pzUQanl0wG0SXO5fDQ4hE9C6w5mEcEGg7EUHVg0HAop5fPg1cpiQzkO6V6ZEpWuGS88_Y--Yzb8QWtYkpRC96m-uZqMpW1JsmsQgwk3rJMlB8pbi9mYoTSX3gxBELNpmeuuJdAv7XGd70bSHGXkiJt6qKgZv"/>
+<div>
+<p class="font-body-md font-bold text-on-surface">Alex Sterling</p>
+<p class="text-label-md text-on-surface-variant">Premium Plan • <span class="text-primary">Active</span></p>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 lg:ml-80 pb-32 lg:pb-12">
+<div class="max-w-6xl mx-auto px-container-padding-mobile lg:px-container-padding-desktop pt-stack-lg">
+<!-- Header Section -->
+<header class="flex flex-col md:flex-row md:items-center justify-between gap-stack-md mb-stack-lg">
+<div>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Reply Scanner</h1>
+<p class="text-on-surface-variant mt-1 font-body-sm">AI-powered classification of incoming recruiter communications.</p>
+</div>
+<div class="flex items-center gap-stack-sm">
+<div class="relative inline-block text-left">
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg border border-outline-variant bg-surface-container text-on-surface hover:bg-surface-container-highest transition-colors font-label-md">
+                                Last 7 Days
+                                <span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+</div>
+<button class="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-primary-container to-secondary-container text-on-primary-container rounded-lg font-bold luminous-glow active:scale-95 transition-all duration-200">
+<span class="material-symbols-outlined" data-icon="radar">radar</span>
+                            Scan Now
+                        </button>
+</div>
+</header>
+<!-- Stats/Grid Overview (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-stack-lg">
+<div class="bg-surface-container border border-outline-variant rounded-xl p-stack-md flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">mail</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant uppercase">Emails Scanned</p>
+<p class="font-headline-md text-on-surface">1,284</p>
+</div>
+</div>
+<div class="bg-surface-container border border-outline-variant rounded-xl p-stack-md flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-secondary-container/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">forum</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant uppercase">Interview Offers</p>
+<p class="font-headline-md text-secondary">12</p>
+</div>
+</div>
+<div class="bg-surface-container border border-outline-variant rounded-xl p-stack-md flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-tertiary-container/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary">bolt</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant uppercase">AI Match Rate</p>
+<p class="font-headline-md text-tertiary">94%</p>
+</div>
+</div>
+</div>
+<!-- Main Data Table Container -->
+<div class="bg-surface-container border border-outline-variant rounded-xl overflow-hidden glass-card">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface-container-high/50">
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase">Recruiter</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase">Subject</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase">Classification</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase">AI Summary</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase text-right">Date</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/30">
+<!-- Table Row 1 -->
+<tr class="hover:bg-surface-container-highest/40 transition-colors group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<img alt="Jane Doe" class="w-8 h-8 rounded-full border border-outline-variant" data-alt="Professional corporate headshot of a female recruiter in a modern office, featuring soft studio lighting and a neutral, professional background with blue and gray tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXqJKMZsiPfCl9q_kjRUTcbPmNF-lKtlhA0MDreA46Q_q9O7w9-dhOYvcAsaJIaeduskoPZEAYx_07F5hhC6d1_h5cD0umchFAFolmxhmrrc-g6Tr2iTMhliSZvegTP4Koxpcpw4QqXjdF9goLN3bjY4AHUQS-V757awq1SZVHOK_Ru0BwQxkOfolCsrAwCy_5R9AMvaDbOiJK0xJOsnmN4bJhbngJYn2sj1FYBa8abWeZQqYZDFJ4alb6QoHTzLGzFBpKV5YOGQ8K"/>
+<span class="font-body-md font-semibold text-on-surface">Jane Doe</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="text-on-surface font-medium">Interview: Senior Product Designer</span>
+</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container/20 text-on-secondary-container border border-secondary-container/30 text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                                            Interview Request
+                                        </span>
+</td>
+<td class="px-6 py-5">
+<p class="text-body-sm text-on-surface-variant italic max-w-xs">Requested a 30-min call this Thursday to discuss the Design Lead role.</p>
+</td>
+<td class="px-6 py-5 text-right font-label-md text-on-surface-variant">
+                                        Today, 10:45 AM
+                                    </td>
+</tr>
+<!-- Table Row 2 -->
+<tr class="hover:bg-surface-container-highest/40 transition-colors group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<img alt="Marcus Knight" class="w-8 h-8 rounded-full border border-outline-variant" data-alt="A sharp, professional headshot of a male hiring manager, illuminated by natural light in a minimalist architectural space. The color palette is composed of deep navys, slate grays, and subtle indigo accents, reflecting a high-tech corporate style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtbaXaYO0pT3Kf2yDyOh2735_Krj0UUyvH2F-1RwZBgcjWPGi86WkktGKZFHCG7_q6UpAnusOpBCZmovItn2o3lHy2Rh7kyw0NiNPirlKiVS_-k7pbv9Lrb617x5r9v-gy6fzjcreFo3_7ivronr8c0Why5UYrwYWP-3IYTb58s9UL9k8O4oM0Tp3w1BtZ1cy6poVdxv1xtBxAWW1_jXZ4EcISdzUtaFSdoxHQ28vl8ks7Zo22G3Qnq2xn3Yt5hWGD9uZt36N6n3n7"/>
+<span class="font-body-md font-semibold text-on-surface">Marcus Knight</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="text-on-surface font-medium">Follow up: Application Status</span>
+</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                            Follow-up
+                                        </span>
+</td>
+<td class="px-6 py-5">
+<p class="text-body-sm text-on-surface-variant italic max-w-xs">Checking in to see if you received the technical assessment link sent yesterday.</p>
+</td>
+<td class="px-6 py-5 text-right font-label-md text-on-surface-variant">
+                                        Yesterday, 4:20 PM
+                                    </td>
+</tr>
+<!-- Table Row 3 -->
+<tr class="hover:bg-surface-container-highest/40 transition-colors group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<img alt="Sarah Lee" class="w-8 h-8 rounded-full border border-outline-variant" data-alt="High-quality professional avatar of a recruiter in a bright, modern workplace. The visual style is crisp and clean, with a focus on professional approachability. The background features geometric glass elements and soft blue glowing accents typical of a luxury tech interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLoQXcThPj9aSRth2Ngic1K6f31UXMRhIeBup0Oc7NTiU2m9xTuV9U2VmZIpUmOJP8hZ5mMzOur1QO-PphMLJKpnk66e-AAsQVAJCyZnbFWSM05TlGpt6G6Se6qFVAJDk7Tu7wXgZJA5r8GijgiJWTVszNMPQ0lEl_RTgbsyF65tfkT3c_SdsgQC9Ee2O4Bdxm03xDqrBZMdo1DaFI4gbJ9uB0hX6axxdu3Uc53ovu3k3r9SaNccJg6D0ThC7n92fjJReZCXbrQJ6e"/>
+<span class="font-body-md font-semibold text-on-surface">Sarah Lee</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="text-on-surface font-medium">Update regarding your application</span>
+</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-error-container/20 text-error border border-error-container/30 text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                                            Rejection
+                                        </span>
+</td>
+<td class="px-6 py-5">
+<p class="text-body-sm text-on-surface-variant italic max-w-xs">Standard rejection notice; they have decided to move forward with other candidates.</p>
+</td>
+<td class="px-6 py-5 text-right font-label-md text-on-surface-variant">
+                                        Oct 24, 2023
+                                    </td>
+</tr>
+<!-- Table Row 4 -->
+<tr class="hover:bg-surface-container-highest/40 transition-colors group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<img alt="Robert T" class="w-8 h-8 rounded-full border border-outline-variant" data-alt="Portrait of a modern recruiter in a creative tech hub. The lighting is dynamic, using cool tones and soft cyan shadows to create a sophisticated, forward-thinking aesthetic. The style is consistent with a high-fidelity digital professional profile." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAEKeTN0aZRUWP4h3Kx7WmnaG3TAUexxR0bS8H6Dp3UELkM8XKW0syj-jHA396yauLEyWl-1X6_H7eBdDAKhQc5Ull0CfJFKkAGfPvSYDvvP316BpwcXkRynrOIEHvdgS1e_Fx-wT5wIeH7MbSUDNWMzkGcEyK4mP5zYS6yRbvhINFa_rtepBJfxfCnUWuOv-p3fCS_q-MncxsPBXVdC8oKcKfkaj3rTImvNTl08n2BNXgWrYL136LWS3cAf93XwplrRmpnst-xrEO"/>
+<span class="font-body-md font-semibold text-on-surface">Robert T.</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="text-on-surface font-medium">Interview Invitation: AI Solutions</span>
+</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container/20 text-on-secondary-container border border-secondary-container/30 text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                                            Interview Request
+                                        </span>
+</td>
+<td class="px-6 py-5">
+<p class="text-body-sm text-on-surface-variant italic max-w-xs">Invitation for a first-round interview with the CTO of AI Solutions next week.</p>
+</td>
+<td class="px-6 py-5 text-right font-label-md text-on-surface-variant">
+                                        Oct 23, 2023
+                                    </td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Table Footer -->
+<div class="px-6 py-4 bg-surface-container border-t border-outline-variant flex justify-between items-center">
+<span class="text-body-sm text-on-surface-variant">Showing 4 of 42 classified replies</span>
+<div class="flex gap-2">
+<button class="p-2 rounded-lg border border-outline-variant hover:bg-surface-container-highest transition-colors disabled:opacity-50">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="p-2 rounded-lg border border-outline-variant hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Mobile Bottom Navigation Bar -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container dark:bg-surface-container border-t border-outline-variant shadow-lg rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+<span class="font-label-md">Agent</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="send">send</span>
+<span class="font-label-md">Outreach</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container dark:bg-primary-container text-on-primary-container dark:text-on-primary-container rounded-xl p-2 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="move_to_inbox" style="font-variation-settings: 'FILL' 1;">move_to_inbox</span>
+<span class="font-label-md">Inbox</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-label-md">Resume</span>
+</a>
+</nav>
+</div>
+<!-- Contextual FAB for Scanning (Mobile Only) -->
+<button class="lg:hidden fixed right-6 bottom-24 w-14 h-14 bg-gradient-to-br from-primary-container to-secondary-container text-on-primary-container rounded-full flex items-center justify-center shadow-xl luminous-glow active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined" style="font-size: 28px;">radar</span>
+</button>
+</body></html>

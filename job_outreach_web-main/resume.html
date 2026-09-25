@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "primary-fixed": "#e1e0ff",
+                "primary-fixed-dim": "#c0c1ff",
+                "tertiary-container": "#8990a8",
+                "primary": "#c0c1ff",
+                "on-background": "#e0e3e5",
+                "error-container": "#93000a",
+                "surface": "#101415",
+                "on-surface-variant": "#c7c4d7",
+                "surface-variant": "#323537",
+                "on-secondary-fixed-variant": "#5516be",
+                "on-tertiary": "#283044",
+                "on-secondary-container": "#c4abff",
+                "on-primary-fixed": "#07006c",
+                "on-secondary": "#3c0091",
+                "outline": "#908fa0",
+                "on-error-container": "#ffdad6",
+                "surface-container-low": "#191c1e",
+                "inverse-on-surface": "#2d3133",
+                "tertiary-fixed": "#dae2fd",
+                "tertiary-fixed-dim": "#bec6e0",
+                "surface-container-highest": "#323537",
+                "on-surface": "#e0e3e5",
+                "inverse-surface": "#e0e3e5",
+                "on-tertiary-container": "#22293d",
+                "on-primary-fixed-variant": "#2f2ebe",
+                "on-tertiary-fixed": "#131b2e",
+                "secondary-fixed-dim": "#d0bcff",
+                "on-secondary-fixed": "#23005c",
+                "surface-container-lowest": "#0b0f10",
+                "on-primary": "#1000a9",
+                "inverse-primary": "#494bd6",
+                "primary-container": "#8083ff",
+                "surface-tint": "#c0c1ff",
+                "background": "#101415",
+                "on-tertiary-fixed-variant": "#3f465c",
+                "surface-bright": "#363a3b",
+                "secondary-fixed": "#e9ddff",
+                "surface-dim": "#101415",
+                "secondary": "#d0bcff",
+                "tertiary": "#bec6e0",
+                "on-primary-container": "#0d0096",
+                "surface-container-high": "#272a2c",
+                "secondary-container": "#571bc1",
+                "outline-variant": "#464554",
+                "on-error": "#690005",
+                "error": "#ffb4ab",
+                "surface-container": "#1d2022"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "container-padding-desktop": "32px",
+                "stack-md": "16px",
+                "base": "8px",
+                "stack-sm": "8px",
+                "stack-lg": "32px",
+                "gutter": "24px",
+                "container-padding-mobile": "16px"
+            },
+            "fontFamily": {
+                "headline-md": ["Inter"],
+                "headline-xl": ["Inter"],
+                "body-md": ["Inter"],
+                "label-md": ["Inter"],
+                "headline-lg-mobile": ["Inter"],
+                "headline-lg": ["Inter"],
+                "body-sm": ["Inter"],
+                "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+        }
+        .upload-dashed {
+            background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%238083ff' stroke-width='2' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen">
+<!-- Top AppBar -->
+<header class="bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant w-full top-0 sticky z-40 flex justify-between items-center px-container-padding-mobile h-16">
+<div class="flex items-center gap-4">
+<button class="text-primary dark:text-primary active:scale-95 duration-200">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary">AI Job Mailer</h1>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img alt="User avatar" data-alt="A professional high-resolution headshot of a modern executive with a friendly yet confident expression. The lighting is dramatic with cool blue and violet rim lights that reflect the futuristic AI-themed environment. The background is a soft-focus office with minimalist digital art and sleek architectural lines, perfectly matching the deep slate and indigo UI aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvnDvw96S6g_vrSqbadbcJfTb1Th6kBFNlCXsIFA1h6Md7APx7x4rsBswzakVMJ2zZPQ_mJhhxFI9B8bCneFiTqTJj8mFH_T5KznPUMef6_ZAHRCCZ0vzY0fBVPl7_67mmbYI421ugarZYqVU7zPL3YjTkyricRD6uV-ZdixwPx-EuBBHzFd87SxLeAubuelf9DaneQgTJEMI4XXtrhvEIyJ--YaiBzca8ePaFp8Hp4lPnlDDUMU60ZpEsaTUm1Gzg6sPKkcGobAR4"/>
+</div>
+</header>
+<main class="pb-24 px-container-padding-mobile">
+<div class="max-w-md mx-auto py-stack-lg space-y-stack-lg">
+<!-- Header Section -->
+<section>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Resume Manager</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Manage and optimize your resumes for AI-powered job applications.</p>
+</section>
+<!-- Upload Card -->
+<section class="relative">
+<div class="upload-dashed rounded-xl p-stack-lg flex flex-col items-center justify-center text-center bg-surface-container-low transition-all duration-300 hover:bg-surface-container">
+<div class="w-16 h-16 rounded-full bg-secondary-container/20 flex items-center justify-center mb-stack-md">
+<span class="material-symbols-outlined text-primary text-4xl" data-weight="fill" style="font-variation-settings: 'FILL' 1;">description</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface mb-stack-md">Upload your latest PDF resume here</p>
+<button class="bg-gradient-to-r from-primary-container to-secondary-container text-on-primary-container font-label-md text-label-md px-6 py-3 rounded-full shadow-lg shadow-primary-container/20 active:scale-95 transition-transform">
+                        Browse Files
+                    </button>
+</div>
+</section>
+<!-- Statistics/Bento Elements -->
+<section class="grid grid-cols-2 gap-gutter">
+<div class="bg-surface-container border border-outline-variant p-stack-md rounded-xl">
+<span class="font-label-md text-label-md text-primary block mb-1">AI Match Rate</span>
+<span class="font-headline-md text-headline-md text-on-surface">94%</span>
+<div class="w-full bg-surface-container-highest h-1.5 rounded-full mt-2 overflow-hidden">
+<div class="bg-primary w-[94%] h-full rounded-full"></div>
+</div>
+</div>
+<div class="bg-surface-container border border-outline-variant p-stack-md rounded-xl">
+<span class="font-label-md text-label-md text-secondary block mb-1">Keywords</span>
+<span class="font-headline-md text-headline-md text-on-surface">42</span>
+<p class="text-[10px] text-on-surface-variant mt-2 uppercase tracking-wider">Optimized</p>
+</div>
+</section>
+<!-- Recently Uploaded List -->
+<section class="space-y-stack-md">
+<div class="flex justify-between items-end px-1">
+<h3 class="font-headline-md text-headline-md text-on-surface">Recently Uploaded</h3>
+<span class="font-label-md text-label-md text-primary cursor-pointer">View All</span>
+</div>
+<div class="space-y-stack-sm">
+<!-- Resume Item 1 -->
+<div class="bg-surface-container border border-outline-variant p-stack-md rounded-xl flex items-center gap-4 hover:border-primary transition-colors group">
+<div class="w-12 h-12 bg-surface-container-highest rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">flex_direction</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-md text-body-md text-on-surface font-semibold">Sterling_Senior_Dev.pdf</h4>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-label-md text-label-md text-on-surface-variant">2.4 MB</span>
+<span class="text-outline-variant">•</span>
+<span class="font-label-md text-label-md text-on-surface-variant">2 days ago</span>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<!-- Resume Item 2 -->
+<div class="bg-surface-container border border-outline-variant p-stack-md rounded-xl flex items-center gap-4 hover:border-primary transition-colors group">
+<div class="w-12 h-12 bg-surface-container-highest rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">flex_direction</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-md text-body-md text-on-surface font-semibold">Sterling_Exec_Role.pdf</h4>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-label-md text-label-md text-on-surface-variant">1.8 MB</span>
+<span class="text-outline-variant">•</span>
+<span class="font-label-md text-label-md text-on-surface-variant">1 week ago</span>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<!-- AI Processing Item -->
+<div class="bg-surface-container/50 border border-secondary-container/30 p-stack-md rounded-xl flex items-center gap-4 relative overflow-hidden group">
+<div class="absolute inset-0 bg-secondary-container/5 opacity-10"></div>
+<div class="w-12 h-12 bg-secondary-container/20 rounded-lg flex items-center justify-center animate-pulse">
+<span class="material-symbols-outlined text-secondary">auto_awesome</span>
+</div>
+<div class="flex-1 relative z-10">
+<div class="flex items-center gap-2">
+<h4 class="font-body-md text-body-md text-on-surface font-semibold">Analyzing Skills...</h4>
+<span class="inline-block w-1.5 h-1.5 bg-secondary rounded-full animate-ping"></span>
+</div>
+<p class="font-label-md text-label-md text-secondary">Enhancing with AI-driven keywords</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container dark:bg-surface-container border-t border-outline-variant shadow-lg">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="font-label-md text-label-md">Agent</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">send</span>
+<span class="font-label-md text-label-md">Outreach</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">move_to_inbox</span>
+<span class="font-label-md text-label-md">Inbox</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container dark:bg-primary-container text-on-primary-container dark:text-on-primary-container rounded-xl p-2 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="font-label-md text-label-md">Resume</span>
+</a>
+</nav>
+<!-- Side Navigation Drawer (Hidden on mobile, defined as per JSON) -->
+<aside class="hidden lg:flex flex-col h-screen py-stack-lg bg-surface-container dark:bg-surface-container w-80 fixed left-0 top-0 shadow-lg">
+<div class="px-6 mb-stack-lg flex flex-col items-start">
+<h1 class="font-headline-md text-headline-md font-bold text-primary mb-stack-md">AI Job Mailer</h1>
+<div class="flex items-center gap-3 bg-surface-container-highest/30 p-3 rounded-xl w-full">
+<img alt="User avatar" class="w-10 h-10 rounded-full" data-alt="A detailed digital portrait of a high-tech corporate professional. The subject has sharp features and a look of calm expertise, set against a dark, refined workplace background with vibrant purple and indigo accent lights. The image conveys a high-end, premium atmosphere consistent with a modern AI-driven application for executive talent." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6F9DfJkGknqvvloKVZoIAHJagVn3T27xf24Wn_jHqlpSepRUeghPqrWMaF9CLCBv3nlGNW0nsoEKQ1c6UOq7kN9OAaKjGOHxGwuCs1j4F_xz306zGpfxnsxqsQG_yv358IW_ysMokxsOaKxuNaqj8cvfeBJB7Iw630EWUg19ZSEOcq-GhR0dDSApcSB7KcdAcCEYzRu4Szji7p5TCHZq6LICjZr_9Un3H6QqcHOIitsTesOqpSLDT2XFvjka9RcoxQT11DHSsMk5G"/>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-semibold">Alex Sterling</p>
+<div class="flex items-center gap-2">
+<p class="font-label-md text-label-md text-on-surface-variant">Premium Plan</p>
+<span class="w-1 h-1 bg-primary rounded-full"></span>
+<p class="font-label-md text-label-md text-primary">Active</p>
+</div>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="text-on-surface-variant dark:text-on-surface-variant px-4 py-3 mx-2 flex items-center gap-3 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-full transition-all" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="font-body-md text-body-md">Auto Agent</span>
+</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant px-4 py-3 mx-2 flex items-center gap-3 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-full transition-all" href="#">
+<span class="material-symbols-outlined">send</span>
+<span class="font-body-md text-body-md">Outreach</span>
+</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant px-4 py-3 mx-2 flex items-center gap-3 hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-full transition-all" href="#">
+<span class="material-symbols-outlined">move_to_inbox</span>
+<span class="font-body-md text-body-md">Inbox Scanner</span>
+</a>
+<a class="bg-secondary-container dark:bg-secondary-container text-on-secondary-container dark:text-on-secondary-container rounded-full px-4 py-3 mx-2 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="font-body-md text-body-md">Resume</span>
+</a>
+</nav>
+</aside>
+</body></html>

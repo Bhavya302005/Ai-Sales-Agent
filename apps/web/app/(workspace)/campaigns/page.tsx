@@ -8,14 +8,21 @@ import {
   approveLead,
   addLeadToCampaign,
   createCampaign,
+  deleteCampaign,
   dispatchPstnCall,
   importLeadFile,
+  removeCampaignLead,
+  removeCampaignLeads,
   requestBrowserCall,
   requestPstnCall,
   processDueCampaigns,
   updateCampaignRun,
 } from "./actions";
 import { CallStatusPoller } from "./call-status-poller";
+import { CampaignLeadUploader } from "./campaign-lead-uploader";
+import { DeleteCampaignButton } from "./delete-campaign-button";
+import { EmailOutreachPanel } from "./email-outreach/EmailOutreachPanel";
+import { getEmailDrafts, getEmailOutreachStatus, type EmailDraft } from "./email-outreach/actions";
 
 const WORKFLOW_OPTIONS: CustomSelectOption[] = [
   { value: "leads_and_calling", label: "Discover leads + call" },
@@ -29,12 +36,30 @@ const SCHEDULE_OPTIONS: CustomSelectOption[] = [
   { value: "monthly", label: "Run monthly" },
 ];
 
-export default async function CampaignsPage() {
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ call_error?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : {};
   const [campaigns, leads, provider] = await Promise.all([getCampaigns(), getLeads(), getCallingProvider()]);
   const campaignRunEntries = await Promise.all(
     campaigns.map(async (campaign) => [campaign.id, await getCampaignRuns(campaign.id)] as const),
   );
   const runsByCampaign: Record<string, CampaignRun[]> = Object.fromEntries(campaignRunEntries);
+  // Email outreach — fetched in parallel, fails gracefully if not configured
+  const [emailStatus, ...emailDraftArrays] = await Promise.allSettled([
+    getEmailOutreachStatus(),
+    ...campaigns.map((c) => getEmailDrafts(c.id)),
+  ]);
+  const emailOutreachStatus = emailStatus.status === "fulfilled"
+    ? emailStatus.value
+    : { enabled: false, mode: "disabled", from_address: null, from_name: "SignalPath" };
+  const draftsByCampaign: Record<string, EmailDraft[]> = {};
+  campaigns.forEach((c, i) => {
+    const result = emailDraftArrays[i];
+    draftsByCampaign[c.id] = result?.status === "fulfilled" ? result.value.items : [];
+  });
   const showDiagnostics = diagnosticsEnabled();
   const hasActiveCalls = campaigns.some((campaign) =>
     campaign.leads.some((item) => ["connecting", "active", "ending"].includes(item.latest_call_state ?? ""))
@@ -46,6 +71,11 @@ export default async function CampaignsPage() {
         <span className={`knowledge-state ${provider.pstn_configured ? "callable" : "blocked"}`}>{provider.pstn_configured ? `${provider.label} ready` : "Calling setup required"}</span>
       </header>
       <CallStatusPoller active={hasActiveCalls} />
+      {resolvedParams.call_error ? (
+        <div className="form-error" role="alert" style={{ marginBottom: "16px" }}>
+          {resolvedParams.call_error}
+        </div>
+      ) : null}
       <section className="campaign-create-panel">
         <div><p className="kicker">Explicit workflow</p><h2>Create a safe campaign</h2></div>
         <form action={createCampaign} className="campaign-create-form">
@@ -85,7 +115,14 @@ export default async function CampaignsPage() {
           <article className="campaign-card" key={campaign.id}>
             <div className="section-heading">
               <div><p className="kicker">{campaign.mode.replaceAll("_", " ")} · {campaign.status} · {campaign.timezone}</p><h2>{campaign.name}</h2></div>
-              <strong>₹{campaign.daily_budget_inr} daily cap</strong>
+              <div className="campaign-header-right">
+                <span className="campaign-budget-tag">₹{campaign.daily_budget_inr} daily cap</span>
+                <DeleteCampaignButton
+                  campaignId={campaign.id}
+                  campaignName={campaign.name}
+                  deleteAction={deleteCampaign}
+                />
+              </div>
             </div>
             <p className="fine-print">
               {campaign.recurrence} · maximum {campaign.max_attempts} attempt{campaign.max_attempts === 1 ? "" : "s"} · retry after {campaign.retry_delay_minutes} minutes
@@ -94,7 +131,7 @@ export default async function CampaignsPage() {
             <p className="fine-print">Calling provider: {provider.label} · {provider.pstn_configured ? "ready" : "action required in Administration"}</p>
             {(runsByCampaign[campaign.id] ?? []).slice(0, 3).map((run) => (
               <div className="campaign-run" key={run.id}>
-                <span><b>{run.state}</b> · {new Date(run.scheduled_for).toLocaleString("en-IN")} · {run.ready_lead_count} approved lead(s)</span>
+                <span><span>{run.state}</span> · {new Date(run.scheduled_for).toLocaleString("en-IN")} · {run.ready_lead_count} approved lead(s)</span>
                 {!["completed", "cancelled"].includes(run.state) ? (
                   <form action={updateCampaignRun}>
                     <input name="campaign_id" type="hidden" value={campaign.id} />
@@ -106,14 +143,12 @@ export default async function CampaignsPage() {
               </div>
             ))}
             {campaign.mode === "calling_only" ? (
-              <form action={importLeadFile} className="lead-upload-form">
-                <input name="campaign_id" type="hidden" value={campaign.id} />
-                <label>
-                  <span>Upload consenting leads (CSV/XLSX, max 100 rows)</span>
-                  <input accept=".csv,.xlsx" name="file" required type="file" />
-                </label>
-                <button className="secondary-button" type="submit">Validate and import</button>
-              </form>
+              <CampaignLeadUploader
+                campaignId={campaign.id}
+                leadCount={campaign.leads.length}
+                importAction={importLeadFile}
+                removeAction={removeCampaignLeads}
+              />
             ) : (() => {
               const availableLeads = leads
                 .filter((lead) => !campaign.leads.some((item) => item.lead_id === lead.id))
@@ -148,7 +183,7 @@ export default async function CampaignsPage() {
                   <Link href={`/leads/${item.lead_id}`}>{lead?.company_name ?? "Review opportunity"}</Link>
                   <span>Status: {item.state.replaceAll("_", " ")}</span>
                   {item.disposition !== item.state ? <span className={item.disposition === "interested" ? "interested-pill" : ""}>Outcome: {item.disposition.replaceAll("_", " ")}</span> : null}
-                  {item.latest_call_state ? <b>Last attempt: {item.latest_call_transport} · {item.latest_call_state}</b> : null}
+                  {item.latest_call_state ? <span>Last attempt: {item.latest_call_transport} · {item.latest_call_state}</span> : null}
                 </div>
                 {item.approved_at ? (
                   item.contact_id ? (
@@ -181,17 +216,43 @@ export default async function CampaignsPage() {
                           <input name="transport" type="hidden" value={provider.transport} />
                           <input name="idempotency_key" type="hidden" value={`${provider.transport}:${item.id}:${item.lead_id}:${item.contact_id}:${item.latest_call_id ?? "first"}`} />
                           <label><input name="consent_attested" type="checkbox" required /> I confirm this contact consented to receive this call</label>
-                          <button className="primary-button" disabled={!provider.pstn_configured} type="submit">Prepare call</button>
+                          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                            <button className="primary-button" disabled={!provider.pstn_configured} type="submit">Prepare call</button>
+                            <button
+                              formAction={removeCampaignLead}
+                              formNoValidate
+                              className="text-button"
+                              type="submit"
+                              style={{ color: "var(--muted)", fontSize: "12.5px", textDecoration: "underline" }}
+                              title="Remove lead from campaign"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </form>
                       )}
                     </div>
                   ) : <span className="warning-copy">No callable contact</span>
                 ) : (
-                  <form action={approveLead}>
-                    <input name="campaign_id" type="hidden" value={campaign.id} />
-                    <input name="lead_id" type="hidden" value={item.lead_id} />
-                    <button className="secondary-button" type="submit">Approve for outreach</button>
-                  </form>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <form action={approveLead}>
+                      <input name="campaign_id" type="hidden" value={campaign.id} />
+                      <input name="lead_id" type="hidden" value={item.lead_id} />
+                      <button className="secondary-button" type="submit">Approve for outreach</button>
+                    </form>
+                    <form action={removeCampaignLead}>
+                      <input name="campaign_id" type="hidden" value={campaign.id} />
+                      <input name="lead_id" type="hidden" value={item.lead_id} />
+                      <button
+                        className="text-button"
+                        type="submit"
+                        style={{ color: "var(--muted)", fontSize: "12.5px", textDecoration: "underline" }}
+                        title="Remove lead from campaign"
+                      >
+                        Remove
+                      </button>
+                    </form>
+                  </div>
                 )}
                 {item.latest_call_checks.some((check) => !check.passed) ? (
                   <ul className="eligibility-failures">
@@ -199,6 +260,17 @@ export default async function CampaignsPage() {
                       <li key={check.name}>{check.reason}</li>
                     ))}
                   </ul>
+                ) : null}
+                {/* Email outreach — shown for approved leads with an email address */}
+                {item.approved_at ? (
+                  <EmailOutreachPanel
+                    campaignId={campaign.id}
+                    leadId={item.lead_id}
+                    companyName={leads.find((l) => l.id === item.lead_id)?.company_name ?? "Lead"}
+                    recipientEmail={leads.find((l) => l.id === item.lead_id)?.best_email}
+                    drafts={draftsByCampaign[campaign.id]?.filter((d) => d.lead_id === item.lead_id) ?? []}
+                    status={emailOutreachStatus}
+                  />
                 ) : null}
               </div>;
             })}

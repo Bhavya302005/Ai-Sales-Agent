@@ -14,5 +14,5 @@ export async function refreshLeads() {
     failed = true;
   }
   revalidatePath("/leads");
-  redirect(`/leads?provider=${failed ? "failed" : "live"}`);
+  redirect(`/leads?provider=${failed ? "failed" : "live"}&_t=${Date.now()}`);
 }

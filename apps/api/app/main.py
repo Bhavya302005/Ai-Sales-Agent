@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -10,12 +12,14 @@ from starlette.concurrency import run_in_threadpool
 from app.admin_api import router as admin_router
 from app.analytics_api import router as analytics_router
 from app.api import router as api_router
+from app.booking_followups.api import router as booking_followups_router
 from app.calling.api import router as calling_router
 from app.campaign_ops import router as campaign_ops_router
 from app.company_api import router as company_router
 from app.config import get_settings
 from app.crm.api import router as crm_router
 from app.discovery.api import router as discovery_router
+from app.email_outreach.api import router as email_outreach_router
 from app.hubspot_import import router as hubspot_import_router
 from app.jobs.api import router as jobs_router
 from app.knowledge_api import router as knowledge_router
@@ -26,14 +30,44 @@ from app.outcomes.api import router as outcomes_router
 from app.readiness import broker_is_ready, database_is_ready
 from app.schemas import HealthResponse, ReadinessCheck, ReadinessResponse
 from app.source_api import router as source_router
+from app.subscription_api import router as subscription_router
 
 VERSION = "0.1.0"
+logger = logging.getLogger(__name__)
+
+
+def _process_booking_scheduler_tick() -> None:
+    from sqlalchemy.orm import Session
+
+    from app.campaign_ops import process_due_campaigns
+    from app.db import get_engine
+
+    with Session(get_engine()) as session:
+        process_due_campaigns(session, settings=get_settings())
+
+
+async def _inline_booking_scheduler() -> None:
+    while True:
+        await asyncio.sleep(60)
+        try:
+            await run_in_threadpool(_process_booking_scheduler_tick)
+        except Exception:
+            logger.exception("Inline booking scheduler tick failed")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    get_settings()
-    yield
+    settings = get_settings()
+    scheduler = (
+        asyncio.create_task(_inline_booking_scheduler())
+        if settings.booking_scheduler_mode == "inline"
+        else None
+    )
+    try:
+        yield
+    finally:
+        if scheduler:
+            scheduler.cancel()
 
 
 app = FastAPI(
@@ -64,6 +98,9 @@ app.include_router(notifications_router)
 app.include_router(admin_router)
 app.include_router(campaign_ops_router)
 app.include_router(hubspot_import_router)
+app.include_router(subscription_router)
+app.include_router(email_outreach_router)
+app.include_router(booking_followups_router)
 
 
 @app.middleware("http")

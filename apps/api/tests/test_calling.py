@@ -24,6 +24,7 @@ from app.persistence.models import (
     Base,
     Call,
     Campaign,
+    CampaignLead,
     ConsentRecord,
     Contact,
     Lead,
@@ -379,4 +380,49 @@ def test_get_provider_recording_range_requests(tmp_path: Path, monkeypatch) -> N
         assert resp_seek.status_code == 206
         assert resp_seek.content == synthetic_audio[10:16]
         assert resp_seek.headers["content-range"] == f"bytes 10-15/{total_len}"
+
+
+def test_delete_campaign(tmp_path: Path) -> None:
+    with _client(tmp_path / "delete-campaign.db") as (client, settings, session):
+        response = client.delete(
+            f"/api/v1/campaigns/{CAMPAIGN_ID}",
+            headers=_headers(settings),
+        )
+        assert response.status_code == 204
+
+        # Verify it no longer exists
+        campaign = session.scalar(select(Campaign).where(Campaign.id == CAMPAIGN_ID))
+        assert campaign is None
+
+
+def test_remove_campaign_lead(tmp_path: Path) -> None:
+    with _client(tmp_path / "remove-lead.db") as (client, settings, session):
+        response = client.delete(
+            f"/api/v1/campaigns/{CAMPAIGN_ID}/leads/{LEAD_ID}",
+            headers=_headers(settings),
+        )
+        assert response.status_code == 204
+
+        item = session.scalar(
+            select(CampaignLead).where(
+                CampaignLead.campaign_id == CAMPAIGN_ID, CampaignLead.lead_id == LEAD_ID
+            )
+        )
+        assert item is None
+
+
+def test_remove_all_campaign_leads(tmp_path: Path) -> None:
+    with _client(tmp_path / "remove-all-leads.db") as (client, settings, session):
+        response = client.delete(
+            f"/api/v1/campaigns/{CAMPAIGN_ID}/leads",
+            headers=_headers(settings),
+        )
+        assert response.status_code == 204
+
+        remaining = session.scalars(
+            select(CampaignLead).where(CampaignLead.campaign_id == CAMPAIGN_ID)
+        ).all()
+        assert len(remaining) == 0
+
+
 
