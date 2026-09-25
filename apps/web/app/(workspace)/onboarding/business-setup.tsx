@@ -14,7 +14,26 @@ const factLines = (values: Record<string, string>) =>
   Object.entries(values).map(([key, value]) => `${key}: ${value}`).join("\n");
 
 export function BusinessSetup({ productName, active }: Props) {
-  const [analysis, setAnalysis] = useState<BusinessProfileAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<BusinessProfileAnalysis | null>(() => {
+    if (active?.is_callable) {
+      return {
+        analysis_method: active.analysis_method || "gemini",
+        analysis_token: "active-override",
+        company_name: productName,
+        description: active.description,
+        services: active.services || [],
+        target_customers: active.target_customers || [],
+        icp: active.icp || { geographies: [], industries: [], needs: [] },
+        facts: active.facts || {},
+        exclusions: active.exclusions || [],
+        pricing_policy: active.pricing_policy || "",
+        qualification_questions: active.qualification_questions || [],
+        handoff_conditions: active.handoff_conditions || [],
+        sources: active.profile_sources || [],
+      } as unknown as BusinessProfileAnalysis;
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState(productName);

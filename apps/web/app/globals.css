@@ -38,9 +38,9 @@
 
   /* Radii */
   --r-pill: 100px;
-  --r-lg: 28px;
-  --r-md: 20px;
-  --r-sm: 12px;
+  --r-lg: 16px;
+  --r-md: 12px;
+  --r-sm: 8px;
 
   /* Shadows */
   --shadow-card: none;
@@ -1856,7 +1856,7 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
 /* =========================================================================
    Onboarding / business setup
    ========================================================================= */
-.business-setup { display: grid; gap: 20px; }
+.business-setup { display: grid; gap: 14px; }
 .setup-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0; padding: 0; list-style: none; }
 .setup-steps li { display: flex; align-items: center; gap: 10px; padding: 13px 15px; border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--muted); font-size: 13px; background: var(--card); }
 .setup-steps li span { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 50%; background: var(--bg-2); color: var(--muted); font-size: 12px; }
@@ -3921,4 +3921,52 @@ blockquote { margin: 30px 0; color: var(--ink); font-family: Georgia, serif; fon
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+/* Installable web app prompt. Kept above mobile navigation and outside app data flows. */
+.pwa-install-card {
+  position: fixed;
+  z-index: 1000;
+  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, calc(100vw - 36px));
+  padding: 12px;
+  border: 1px solid rgba(121, 242, 176, 0.35);
+  border-radius: 16px;
+  background: #07100d;
+  color: #f5f7f2;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
+}
+
+.pwa-install-card img { border-radius: 10px; flex: 0 0 auto; }
+.pwa-install-copy { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.pwa-install-copy strong { font-size: 14px; }
+.pwa-install-copy span { color: #b8c5be; font-size: 12px; line-height: 1.4; }
+.pwa-install-action,
+.pwa-install-dismiss {
+  border: 0;
+  cursor: pointer;
+  color: #07100d;
+  background: #79f2b0;
+}
+.pwa-install-action { border-radius: 999px; padding: 8px 12px; font-weight: 700; }
+.pwa-install-dismiss {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #b8c5be;
+  background: transparent;
+  font-size: 20px;
+}
+
+@media (max-width: 640px) {
+  .pwa-install-card {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: calc(100vw - 24px);
+  }
 }
