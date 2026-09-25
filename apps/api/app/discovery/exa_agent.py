@@ -150,6 +150,10 @@ Specific Problems / Requirements We Solve:
 - Agencies or service providers promoting or advertising their OWN capabilities
 - Listicles and generic blog roundups (e.g., "Top 10 software companies")
 
+== COMPETITOR REJECTION (CRITICAL) ==
+You MUST NOT return our competitors! If a company offers the same or similar services as our Core Services, they are a competitor, NOT a lead.
+We are looking for BUYERS who need these services, not PROVIDERS who offer them.
+
 == QUALIFICATION AND ACCURACY PROTOCOL ==
 1. BUYER VERIFICATION: The company_name MUST be the BUYING organization that needs to hire a B2B vendor/agency. Never set company_name to a social media handle, an agency pitching services, or a blog site.
 2. NO RECRUITMENT/HIRING: If the post mentions "years of experience", "immediate joiners", "salary", "hiring", or "full-time", it is a job post. REJECT IT IMMEDIATELY. We strictly only want B2B contracts, projects, and RFPs.
@@ -179,12 +183,12 @@ def _build_query(product_version: Any) -> str:
     geo_str = " or ".join(geographies[:2]) if geographies else "India"
 
     return (
-        f"Find RECENT (posted within the last 14 days) corporate buyers, enterprises, and funded startups in {industry_str} located in {geo_str} "
-        f"that have an active commercial need or are actively seeking an external agency, implementation partner, or B2B vendor for: {primary_service}. "
-        f"Related requirements to consider: {secondary_services}. "
-        f"Search RECENT executive LinkedIn posts (from the last 14 days), corporate procurement RFPs, verified B2B client project bids, and company announcements. "
-        f"CRITICAL: Strictly exclude all job postings, HR recruitment, hiring for 'joiners' or 'candidates', directory sites, and agencies advertising their own services. We only want B2B outsourcing and vendor procurement. "
-        f"Return verified company names, requirement details, source URLs, and buying intent rationale."
+        f'Search for recent explicit B2B buying signals using exact phrases like: "looking for an agency to help with {primary_service}", '
+        f'"need recommendations for a {primary_service} vendor", "Request for Proposal for {primary_service}", or "seeking a partner for {primary_service}". '
+        f'Target companies in {industry_str} located in {geo_str}. '
+        f'CRITICAL RULE: You MUST NOT return companies that provide {primary_service} or similar services. If they offer it, they are our competitor. REJECT THEM. '
+        f'CRITICAL RULE 2: Exclude all job postings, HR recruitment, hiring for "joiners", and directory sites. '
+        f'We ONLY want to find corporate buyers and enterprises that are ASKING to BUY or OUTSOURCE {primary_service}.'
     )
 
 
