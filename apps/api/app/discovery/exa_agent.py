@@ -23,6 +23,7 @@ import os
 import time
 from pathlib import Path
 from typing import Any
+from datetime import datetime
 
 import httpx
 
@@ -64,6 +65,10 @@ LEAD_OUTPUT_SCHEMA: dict[str, Any] = {
                     "requirement": {"type": "string"},
                     "buying_intent_signal": {"type": "string"},
                     "source_url": {"type": "string"},
+                    "published_date": {
+                        "type": "string",
+                        "description": "ISO 8601 format date (YYYY-MM-DD) when this lead or post was originally published. Crucial for recency check."
+                    },
                     "opportunity_type": {
                         "type": "string",
                         "enum": ["direct_requirement", "project_contract", "tender", "rfp", "hiring_signal", "weak_signal"]
@@ -288,7 +293,7 @@ def exa_agent_leads_to_discovery_items(
                     "Public web profile or post found by Exa Agent; "
                     "original URL retained and no private contact data stored."
                 ),
-                published_at=None,
+                published_at=datetime.fromisoformat(lead["published_date"].replace("Z", "+00:00")) if lead.get("published_date") else None,
                 title=lead.get("company_name", "Lead identified by Exa Agent"),
                 company=lead.get("company_name"),
                 location=lead.get("geography"),
