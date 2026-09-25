@@ -102,10 +102,6 @@ export function WorkspaceSidebar({ workspace, me, navigation }: WorkspaceSidebar
               </svg>
               <div style={{ color: "#000" }}>Signal<span style={{ color: "#000" }}>Path</span></div>
             </Link>
-            <div className="workspace-label">
-              <span>Workspace</span>
-              <strong>{workspace.name}</strong>
-            </div>
           </div>
           <button
             type="button"
@@ -153,10 +149,6 @@ export function WorkspaceSidebar({ workspace, me, navigation }: WorkspaceSidebar
             </svg>
             <div style={{ color: "#000" }}>Signal<span style={{ color: "#000" }}>Path</span></div>
           </Link>
-          <div className="workspace-label">
-            <span>Workspace</span>
-            <strong>{workspace.name}</strong>
-          </div>
         </div>
         {/* All navigation modules continuous */}
         <PrimaryNav navigation={[...navigation, ...integrationsNav]} />
