@@ -19,8 +19,6 @@ services:
       npm install -g mcporter
 
     startCommand: |
-      export PATH="$HOME/.fnm:$PATH"
-      eval "$(fnm env)" 2>/dev/null || true
       alembic upgrade head
       uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
@@ -46,15 +44,15 @@ services:
       - key: ENABLE_OUTBOUND_PSTN
         value: "true"
       - key: OMNIDIM_TEST_TO_NUMBER
-        sync: false
+        value: "+919409790464"
       - key: APP_ENV
         value: production
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
-        sync: false
+        value: "admin@signalpath.ai"
       - key: ADMIN_PASSWORD
-        sync: false
+        value: "admin@3258"
       - key: WEB_ORIGIN
         value: "https://ai-salesagent.vercel.app"
       - key: OMNIDIM_AGENT_ID
