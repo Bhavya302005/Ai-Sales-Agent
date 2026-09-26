@@ -76,11 +76,7 @@ def _version_response(
     version: ProductVersion, active_version_id: UUID | None
 ) -> OfferingVersionResponse:
     stored_facts: dict[str, Any] = version.facts
-    facts = {
-        key: str(value)
-        for key, value in stored_facts.items()
-        if not key.startswith("_")
-    }
+    facts = {key: str(value) for key, value in stored_facts.items() if not key.startswith("_")}
     qualification_questions = stored_facts.get(QUALIFICATION_KEY, [])
     handoff_conditions = stored_facts.get(HANDOFF_KEY, [])
     is_active = version.id == active_version_id
@@ -101,9 +97,7 @@ def _version_response(
         created_at=version.created_at,
         company_url=str(stored_facts.get(COMPANY_URL_KEY) or "") or None,
         services=[str(value) for value in stored_facts.get(SERVICES_KEY, [])],
-        target_customers=[
-            str(value) for value in stored_facts.get(TARGET_CUSTOMERS_KEY, [])
-        ],
+        target_customers=[str(value) for value in stored_facts.get(TARGET_CUSTOMERS_KEY, [])],
         analysis_method=(
             str(stored_facts[ANALYSIS_METHOD_KEY])
             if stored_facts.get(ANALYSIS_METHOD_KEY)
@@ -219,8 +213,8 @@ async def analyze_profile(
         ModelRun(
             organization_id=auth.organization_id,
             purpose="business_profile_analysis",
-            prompt_version="business-profile.prompt.v1",
-            schema_version="business-profile.v1",
+            prompt_version="business-profile.prompt.v2",
+            schema_version="business-profile.v2",
             provider=result.method,
             model=(settings.gemini_dialogue_model if result.method == "gemini" else "rules.v1"),
             latency_ms=result.latency_ms,
@@ -285,9 +279,7 @@ async def analyze_profile(
     )
 
 
-@router.post(
-    "/business-profile/confirm", response_model=OfferingVersionResponse, status_code=201
-)
+@router.post("/business-profile/confirm", response_model=OfferingVersionResponse, status_code=201)
 def confirm_profile(
     payload: BusinessProfileConfirm,
     request: Request,
@@ -384,8 +376,7 @@ def confirm_profile(
             target_type="product_version",
             target_id=version.id,
             reason=(
-                f"owner_confirmed; workflow={payload.workflow_mode}; "
-                f"sources={len(trusted_sources)}"
+                f"owner_confirmed; workflow={payload.workflow_mode}; sources={len(trusted_sources)}"
             ),
             request_id=request.state.request_id,
         )
@@ -449,9 +440,7 @@ def search_approved_knowledge(
             " ", Product.name, ProductVersion.description, cast(ProductVersion.facts, Text)
         )
         statement = statement.where(
-            func.to_tsvector("simple", document).op("@@")(
-                func.plainto_tsquery("simple", query)
-            )
+            func.to_tsvector("simple", document).op("@@")(func.plainto_tsquery("simple", query))
         )
     rows = session.execute(statement.limit(10)).all()
     terms = query.casefold().split()

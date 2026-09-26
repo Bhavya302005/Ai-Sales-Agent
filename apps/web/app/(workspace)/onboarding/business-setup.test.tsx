@@ -62,9 +62,9 @@ describe("BusinessSetup", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Analyze my business" }).closest("form")!);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Here is what we understood" })).toBeVisible();
+      expect(screen.getByRole("heading", { name: "Detailed company intelligence" })).toBeVisible();
     });
-    expect(screen.getByText("AI generated")).toBeVisible();
+    expect(screen.getByText("Evidence-grounded AI analysis")).toBeVisible();
     expect(screen.getByText("Find leads and call")).toBeVisible();
     expect(screen.getByText("Call my own leads")).toBeVisible();
     expect(screen.getByRole("button", { name: "Save profile and continue" })).toBeVisible();
@@ -141,7 +141,7 @@ describe("BusinessSetup", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Analyze my business" }).closest("form")!);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Here is what we understood" })).toBeVisible();
+      expect(screen.getByRole("heading", { name: "Detailed company intelligence" })).toBeVisible();
     });
     expect(screen.getByRole("button", { name: "Update profile" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "What does your company sell?" })).toBeVisible();

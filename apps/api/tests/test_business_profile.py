@@ -62,15 +62,7 @@ def test_grounding_failure_uses_honest_fallback() -> None:
         }
         return httpx.Response(
             200,
-            json={
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [{"text": json.dumps(ungrounded)}]
-                        }
-                    }
-                ]
-            },
+            json={"candidates": [{"content": {"parts": [{"text": json.dumps(ungrounded)}]}}]},
         )
 
     source_text = "We provide SharePoint migration services for regulated organizations."
@@ -94,3 +86,70 @@ def test_grounding_failure_uses_honest_fallback() -> None:
     assert result.method == "deterministic"
     assert result.warning is not None
     assert result.suggestion.services == ["SharePoint migration"]
+
+
+def test_ai_analysis_requests_comprehensive_grounded_company_details() -> None:
+    settings = Settings(app_env="test", gemini_api_key=SecretStr("synthetic-key"))
+    captured: dict[str, object] = {}
+    evidence = (
+        "Northstar provides SharePoint migration and governance services for regulated "
+        "financial services companies across India."
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        captured.update(payload)
+        grounded = {
+            "company_name": "Northstar",
+            "description": (
+                "Northstar provides SharePoint migration and governance services for regulated "
+                "financial services companies across India."
+            ),
+            "services": ["SharePoint migration", "SharePoint governance"],
+            "geographies": ["India"],
+            "industries": ["Financial services"],
+            "customer_needs": ["Migrate regulated content to SharePoint"],
+            "target_customers": ["Regulated financial services companies"],
+            "facts": {
+                "Platform expertise": "SharePoint",
+                "Regulatory focus": "Regulated financial services",
+            },
+            "exclusions": ["Organizations outside the supported evidence require review"],
+            "pricing_policy": "Pricing is not specified; route commercial questions to a human.",
+            "qualification_questions": ["What content and governance scope is required?"],
+            "handoff_conditions": ["The prospect requests pricing or a custom commitment."],
+            "evidence_quotes": [evidence],
+        }
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [{"content": {"parts": [{"text": json.dumps(grounded)}]}}],
+                "usageMetadata": {"promptTokenCount": 100, "candidatesTokenCount": 200},
+            },
+        )
+
+    result = analyze_business_profile(
+        settings=settings,
+        company_name="Northstar",
+        business_details=evidence,
+        services_text="SharePoint migration; SharePoint governance",
+        sources=[
+            ProfileSource(
+                label="User input",
+                kind="user_input",
+                content_hash="b" * 64,
+                excerpt=evidence,
+            )
+        ],
+        source_texts=[evidence],
+        transport=httpx.MockTransport(handler),
+    )
+
+    prompt = captured["contents"][0]["parts"][0]["text"]  # type: ignore[index]
+    generation = captured["generationConfig"]  # type: ignore[assignment]
+    assert result.method == "gemini"
+    assert "REQUIRED COVERAGE CHECKLIST" in prompt
+    assert "technology stack and platform expertise" in prompt
+    assert "target buyer roles" in prompt
+    assert "case studies or named customers" in prompt
+    assert generation["maxOutputTokens"] == 6000  # type: ignore[index]

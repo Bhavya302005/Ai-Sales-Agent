@@ -484,7 +484,7 @@ export function BusinessSetup({ productName, active }: Props) {
 
       {analysis ? (
         <section className="detail-panel setup-review">
-          <div className="section-heading"><div><p className="kicker">Step 2 · Review required</p><h2>Here is what we understood</h2></div><span className="verified-pill">{analysis.analysis_method === "gemini" ? "AI generated" : "Conservative fallback"}</span></div>
+          <div className="section-heading"><div><p className="kicker">Step 2 · Comprehensive review required</p><h2>Detailed company intelligence</h2></div><span className="verified-pill">{analysis.analysis_method === "gemini" ? "Evidence-grounded AI analysis" : "Conservative fallback"}</span></div>
           {analysis.warning ? <p className="setup-warning">{analysis.warning}</p> : null}
           <form
             action={confirmBusinessProfile}
@@ -496,16 +496,16 @@ export function BusinessSetup({ productName, active }: Props) {
           >
             <input name="analysis_token" type="hidden" value={analysis.analysis_token} />
             <label>Company name<input name="company_name" required defaultValue={analysis.company_name} /></label>
-            <label className="wide-field">Offering summary<textarea name="description" required minLength={20} rows={4} defaultValue={analysis.description} /></label>
-            <label>Services<textarea name="services" required rows={5} defaultValue={lines(analysis.services)} /></label>
-            <label>Target customers<textarea name="target_customers" required rows={5} defaultValue={lines(analysis.target_customers)} /></label>
+            <label className="wide-field">Detailed company overview<textarea name="description" required minLength={20} rows={8} defaultValue={analysis.description} /></label>
+            <label>Products and services<textarea name="services" required rows={8} defaultValue={lines(analysis.services)} /></label>
+            <label>Ideal customers and buyer roles<textarea name="target_customers" required rows={8} defaultValue={lines(analysis.target_customers)} /></label>
             <label>Target geographies<textarea name="geographies" required rows={3} defaultValue={lines(analysis.icp.geographies)} /></label>
             <label>Target industries<textarea name="industries" required rows={3} defaultValue={lines(analysis.icp.industries)} /></label>
             <label className="wide-field">Customer needs we should look for<textarea name="needs" required rows={4} defaultValue={lines(analysis.icp.needs)} /></label>
-            <details className="wide-field advanced-review">
-              <summary>Review sales guardrails and qualification logic</summary>
+            <details className="wide-field advanced-review" open>
+              <summary>Review extracted company facts, guardrails, and qualification logic</summary>
               <div className="knowledge-form nested-form">
-                <label>Approved facts — label: answer<textarea name="facts" required rows={4} defaultValue={factLines(analysis.facts)} /></label>
+                <label className="wide-field">Comprehensive approved facts — one “label: detail” per line<textarea name="facts" required rows={14} defaultValue={factLines(analysis.facts)} /></label>
                 <label>Exclusions<textarea name="exclusions" required rows={4} defaultValue={lines(analysis.exclusions)} /></label>
                 <label className="wide-field">Pricing policy<textarea name="pricing_policy" required rows={3} defaultValue={analysis.pricing_policy} /></label>
                 <label>Qualification questions<textarea name="qualification_questions" required rows={5} defaultValue={lines(analysis.qualification_questions)} /></label>
