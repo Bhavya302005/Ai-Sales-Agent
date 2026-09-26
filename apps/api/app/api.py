@@ -166,8 +166,24 @@ def create_account(
         session.commit()
     except IntegrityError as exc:
         session.rollback()
+        # A serverless action or client retry can race after both requests have
+        # observed that the email is free. Recover the account created by the
+        # winning request when the credentials match instead of returning a
+        # false conflict to the user.
+        raced_account = session.scalar(select(UserAccount).where(UserAccount.email == email))
+        if raced_account is not None and verify_password(password, raced_account.password_hash):
+            raced_membership = session.scalar(
+                select(Membership).where(
+                    Membership.user_id == raced_account.id,
+                    Membership.status == "active",
+                )
+            )
+            if raced_membership is not None:
+                return _token(raced_account.id, raced_membership.organization_id, settings)
+        logger.exception("Account creation failed because of a database integrity constraint")
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Account already exists"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Account workspace could not be created",
         ) from exc
     return _token(user_id, organization_id, settings)
 
