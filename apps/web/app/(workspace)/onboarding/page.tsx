@@ -33,7 +33,11 @@ export default async function OnboardingPage() {
           <div><span>Evidence sources</span><strong>{active.profile_source_count}</strong></div>
         </section>
       ) : null}
-      <BusinessSetup productName={isLegacyDemoProfile ? "" : offering.product_name} active={active} />
+      <BusinessSetup
+        productName={active && !isLegacyDemoProfile ? offering.product_name : ""}
+        active={active}
+        storageScope={offering.product_id}
+      />
     </>
   );
 }

@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { AuthForm } from "./auth-form";
 
 export const metadata: Metadata = {
-  title: "Admin Sign In · SignalPath",
-  description: "Sign in with administrator credentials to manage your AI sales workspace.",
+  title: "Sign In · SignalPath",
+  description: "Sign in to manage your AI sales workspace.",
 };
 
 export default async function LoginPage({

@@ -7,13 +7,14 @@ import type { BusinessProfileAnalysis, OfferingVersion } from "@/lib/api";
 
 import { confirmBusinessProfile } from "./actions";
 
-type Props = { productName: string; active?: OfferingVersion };
-const DRAFT_STORAGE_KEY = "signalpath.business-profile-draft.v1";
+type Props = { productName: string; active?: OfferingVersion; storageScope: string };
 const lines = (values: string[]) => values.join("\n");
 const factLines = (values: Record<string, string>) =>
   Object.entries(values).map(([key, value]) => `${key}: ${value}`).join("\n");
 
-export function BusinessSetup({ productName, active }: Props) {
+export function BusinessSetup({ productName, active, storageScope }: Props) {
+  const draftStorageKey = `signalpath.business-profile-draft.v2.${storageScope}`;
+  const uploadedDocsStorageKey = `signalpath.uploaded-docs.v2.${storageScope}`;
   const [analysis, setAnalysis] = useState<BusinessProfileAnalysis | null>(() => {
     if (active?.is_callable) {
       return {
@@ -121,7 +122,7 @@ export function BusinessSetup({ productName, active }: Props) {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem("signalpath.uploaded-docs");
+      const stored = window.localStorage.getItem(uploadedDocsStorageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -131,7 +132,7 @@ export function BusinessSetup({ productName, active }: Props) {
     } catch {
       // ignore
     }
-  }, []);
+  }, [uploadedDocsStorageKey]);
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []).map((file) => ({
@@ -181,12 +182,12 @@ export function BusinessSetup({ productName, active }: Props) {
       services: string;
     }> = {};
     try {
-      const stored = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+      const stored = window.sessionStorage.getItem(draftStorageKey);
       if (stored) {
         draft = JSON.parse(stored) as typeof draft;
       }
     } catch {
-      window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+      window.sessionStorage.removeItem(draftStorageKey);
     }
     const restoreDraft = window.setTimeout(() => {
       if (typeof draft.companyName === "string") setCompanyName(draft.companyName);
@@ -196,15 +197,15 @@ export function BusinessSetup({ productName, active }: Props) {
       setDraftReady(true);
     }, 0);
     return () => window.clearTimeout(restoreDraft);
-  }, []);
+  }, [draftStorageKey]);
 
   useEffect(() => {
     if (!draftReady) return;
     window.sessionStorage.setItem(
-      DRAFT_STORAGE_KEY,
+      draftStorageKey,
       JSON.stringify({ companyName, companyUrl, businessDetails, services }),
     );
-  }, [businessDetails, companyName, companyUrl, draftReady, services]);
+  }, [businessDetails, companyName, companyUrl, draftReady, draftStorageKey, services]);
 
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -225,7 +226,7 @@ export function BusinessSetup({ productName, active }: Props) {
       if (selectedFiles.length > 0) {
         try {
           const names = selectedFiles.map((f) => f.name);
-          window.localStorage.setItem("signalpath.uploaded-docs", JSON.stringify(names));
+          window.localStorage.setItem(uploadedDocsStorageKey, JSON.stringify(names));
           setSavedDocNames(names);
         } catch {
           // ignore

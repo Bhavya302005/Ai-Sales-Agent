@@ -59,6 +59,13 @@ class Organization(IdMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
 
 
+class UserAccount(IdMixin, TimestampMixin, Base):
+    __tablename__ = "user_accounts"
+
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(500), nullable=False)
+
+
 class Workspace(IdMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "workspaces"
     __table_args__ = (UniqueConstraint("organization_id", "name"),)

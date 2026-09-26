@@ -56,14 +56,14 @@ export function AuthForm({ initialMode = "signin", returnTo = "/onboarding" }: A
 
         <div className="auth-admin-badge">
           <span className="auth-badge-dot" />
-          {isSignUp ? "New Workspace" : "Admin Access Only"}
+          {isSignUp ? "New Workspace" : "Secure Workspace Access"}
         </div>
 
-        <h1 className="auth-heading">{isSignUp ? "Create Workspace" : "Administrator Sign In"}</h1>
+        <h1 className="auth-heading">{isSignUp ? "Create Workspace" : "Sign In"}</h1>
         <p className="auth-subheading">
           {isSignUp
             ? "Create your AI sales workspace and set up your business profile."
-            : "Sign in with your workspace administrator credentials to access your sales workspace, leads, and live campaigns."}
+            : "Sign in with your account credentials to access your sales workspace, leads, and live campaigns."}
         </p>
       </div>
 
@@ -83,7 +83,7 @@ export function AuthForm({ initialMode = "signin", returnTo = "/onboarding" }: A
 
         <div className="auth-field">
           <label className="auth-label" htmlFor="auth-email">
-            {isSignUp ? "Email Address" : "Admin Email"}
+            Email Address
           </label>
           <input
             autoComplete="email"
@@ -147,7 +147,7 @@ export function AuthForm({ initialMode = "signin", returnTo = "/onboarding" }: A
           {isPending ? (
             <span className="auth-spinner" />
           ) : (
-            <span>{isSignUp ? "Sign Up" : "Sign In as Admin"}</span>
+            <span>{isSignUp ? "Sign Up" : "Sign In"}</span>
           )}
         </button>
       </form>

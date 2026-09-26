@@ -47,7 +47,7 @@ describe("BusinessSetup", () => {
         }),
       }),
     );
-    render(<BusinessSetup productName="Northstar" />);
+    render(<BusinessSetup productName="Northstar" storageScope="product-a" />);
 
     expect(screen.getByRole("heading", { name: "What does your company sell?" })).toBeVisible();
     fireEvent.change(screen.getByLabelText("Company website"), {
@@ -128,7 +128,7 @@ describe("BusinessSetup", () => {
         }),
       }),
     );
-    render(<BusinessSetup productName="Northstar" active={active} />);
+    render(<BusinessSetup productName="Northstar" active={active} storageScope="product-a" />);
 
     expect(screen.getByRole("link", { name: "Refresh leads →" })).toHaveAttribute(
       "href",
@@ -155,7 +155,7 @@ describe("BusinessSetup", () => {
         json: async () => ({ detail: "Temporary analysis error" }),
       }),
     );
-    render(<BusinessSetup productName="" />);
+    render(<BusinessSetup productName="" storageScope="product-a" />);
 
     fireEvent.change(screen.getByLabelText("Company name"), {
       target: { value: "Northstar" },
@@ -173,7 +173,7 @@ describe("BusinessSetup", () => {
   });
 
   it("restores entered evidence after the component remounts", async () => {
-    const first = render(<BusinessSetup productName="" />);
+    const first = render(<BusinessSetup productName="" storageScope="product-a" />);
     fireEvent.change(screen.getByLabelText("Company name"), {
       target: { value: "Northstar" },
     });
@@ -187,13 +187,13 @@ describe("BusinessSetup", () => {
       target: { value: "SharePoint migration" },
     });
     await waitFor(() =>
-      expect(window.sessionStorage.getItem("signalpath.business-profile-draft.v1")).toContain(
-        "Northstar",
-      ),
+      expect(
+        window.sessionStorage.getItem("signalpath.business-profile-draft.v2.product-a"),
+      ).toContain("Northstar"),
     );
     first.unmount();
 
-    render(<BusinessSetup productName="" />);
+    render(<BusinessSetup productName="" storageScope="product-a" />);
     await waitFor(() => expect(screen.getByLabelText("Company name")).toHaveValue("Northstar"));
     expect(screen.getByLabelText("Company website")).toHaveValue("https://northstar.example");
     expect(screen.getByLabelText("Business description")).toHaveValue(
@@ -202,5 +202,17 @@ describe("BusinessSetup", () => {
     expect(screen.getByLabelText("Products or services — one per line")).toHaveValue(
       "SharePoint migration",
     );
+  });
+
+  it("does not restore another account's business-profile draft", async () => {
+    window.sessionStorage.setItem(
+      "signalpath.business-profile-draft.v2.product-a",
+      JSON.stringify({ companyName: "Futurrizon", businessDetails: "Previous tenant" }),
+    );
+
+    render(<BusinessSetup productName="" storageScope="product-b" />);
+
+    await waitFor(() => expect(screen.getByLabelText("Company name")).toHaveValue(""));
+    expect(screen.getByLabelText("Business description")).toHaveValue("");
   });
 });

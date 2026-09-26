@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 
 type DevSession = { access_token: string; token_type: "bearer" };
 
-async function establishSession() {
+async function establishSession(
+  endpoint: "/api/v1/auth/dev-session" | "/api/v1/auth/login" | "/api/v1/auth/signup",
+  credentials?: { email: string; password: string },
+) {
   const apiBaseUrl = (
     process.env.API_BASE_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL ||
@@ -17,10 +20,12 @@ async function establishSession() {
   
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl}/api/v1/auth/dev-session`, {
+    response = await fetch(`${apiBaseUrl}${endpoint}`, {
       method: "POST",
       cache: "no-store",
       signal: controller.signal,
+      headers: credentials ? { "Content-Type": "application/json" } : undefined,
+      body: credentials ? JSON.stringify(credentials) : undefined,
     });
   } catch (fetchErr: unknown) {
     clearTimeout(timeoutId);
@@ -95,16 +100,13 @@ export async function signInWithCredentials(formData: FormData) {
     configuredAdminPasswords.includes(password) ||
     DEFAULT_ADMIN_PASSWORDS.includes(password);
 
-  if (!isEmailValid || !isPasswordValid) {
-    return {
-      error: "Invalid administrator credentials. Access is restricted to authorized admins.",
-    };
-  }
-
   const destination = returnTo.startsWith("/") ? returnTo : "/onboarding";
   let success = false;
   try {
-    await establishSession();
+    await establishSession(
+      isEmailValid && isPasswordValid ? "/api/v1/auth/dev-session" : "/api/v1/auth/login",
+      isEmailValid && isPasswordValid ? undefined : { email, password },
+    );
     success = true;
   } catch (err: unknown) {
     if (
@@ -137,14 +139,14 @@ export async function signUpWithCredentials(formData: FormData) {
   if (!email || !email.includes("@")) {
     return { error: "Please enter a valid email address." };
   }
-  if (!password || password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+  if (!password || password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
   }
 
   const destination = returnTo.startsWith("/") ? returnTo : "/onboarding";
   let success = false;
   try {
-    await establishSession();
+    await establishSession("/api/v1/auth/signup", { email, password });
     success = true;
   } catch (err: unknown) {
     if (

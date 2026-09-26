@@ -9,20 +9,20 @@ vi.mock("./actions", () => ({
   signUpWithCredentials: vi.fn(),
 }));
 
-describe("AuthForm (Admin Only)", () => {
+describe("AuthForm", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it("renders Admin Sign In view with admin email and password inputs", () => {
+  it("renders the sign-in view with email and password inputs", () => {
     render(<AuthForm />);
 
-    expect(screen.getByRole("heading", { name: /Administrator Sign In/i })).toBeDefined();
-    expect(screen.getByText(/Admin Access Only/i)).toBeDefined();
-    expect(screen.getByLabelText("Admin Email")).toBeDefined();
+    expect(screen.getByRole("heading", { name: /^Sign In$/i })).toBeDefined();
+    expect(screen.getByText(/Secure Workspace Access/i)).toBeDefined();
+    expect(screen.getByLabelText("Email Address")).toBeDefined();
     expect(screen.getByLabelText("Password")).toBeDefined();
-    expect(screen.getByRole("button", { name: /^Sign In as Admin$/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /^Sign In$/i })).toBeDefined();
   });
 
   it("switches to a clean signup form", () => {
@@ -62,9 +62,9 @@ describe("AuthForm (Admin Only)", () => {
   it("submits the form and calls signInWithCredentials", () => {
     render(<AuthForm returnTo="/admin" />);
 
-    const emailInput = screen.getByLabelText("Admin Email");
+    const emailInput = screen.getByLabelText("Email Address");
     const passwordInput = screen.getByLabelText("Password");
-    const submitBtn = screen.getByRole("button", { name: /^Sign In as Admin$/i });
+    const submitBtn = screen.getByRole("button", { name: /^Sign In$/i });
 
     fireEvent.change(emailInput, { target: { value: "admin@signalpath.ai" } });
     fireEvent.change(passwordInput, { target: { value: "admin123" } });
@@ -76,7 +76,7 @@ describe("AuthForm (Admin Only)", () => {
   it("never falls back to putting credentials in the URL before hydration", () => {
     render(<AuthForm />);
 
-    expect(screen.getByRole("button", { name: /^Sign In as Admin$/i }).closest("form")).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^Sign In$/i }).closest("form")).toHaveAttribute(
       "method",
       "post",
     );
