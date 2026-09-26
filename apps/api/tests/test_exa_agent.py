@@ -47,6 +47,12 @@ def _lead(**overrides: object) -> dict[str, object]:
         "lead_role": "buyer",
         "requirement_status": "open",
         "external_provider_requested": True,
+        "email": "procurement@buyer.example",
+        "phone": "",
+        "contact_source_url": "https://buyer.example/contact",
+        "contact_evidence": (
+            "Buyer Corp publishes procurement@buyer.example for procurement enquiries."
+        ),
         "source_url": "https://buyer.example/rfp/42",
         "published_date": (NOW - timedelta(days=2)).date().isoformat(),
         "opportunity_type": "tender",
@@ -104,6 +110,9 @@ def test_prompt_defines_buyer_not_provider_and_requires_source_proof() -> None:
     assert "completed-project announcements" in prompt
     assert "source_url must be the exact post, RFP, tender, or request page" in prompt
     assert "When buyer identity, outsourcing intent" in prompt
+    assert "At minimum, one of email or phone MUST be present" in prompt
+    assert "Never infer an email pattern" in prompt
+    assert "contact_source_url" in prompt
 
 
 def test_acceptance_gate_requires_buyer_outsourcing_open_recent_and_fit() -> None:
@@ -118,6 +127,27 @@ def test_acceptance_gate_requires_buyer_outsourcing_open_recent_and_fit() -> Non
         _lead(published_date=(NOW - timedelta(days=15)).date().isoformat()), now=NOW
     )
     assert not _is_qualified_buyer_lead(_lead(fit_score=59), now=NOW)
+    assert not _is_qualified_buyer_lead(_lead(email="", phone=""), now=NOW)
+    assert not _is_qualified_buyer_lead(_lead(contact_source_url=""), now=NOW)
+    assert not _is_qualified_buyer_lead(_lead(email="procurement-at-buyer.example"), now=NOW)
+    assert not _is_qualified_buyer_lead(_lead(email="", phone="123"), now=NOW)
+
+
+def test_query_requires_dynamic_exa_only_contact_research() -> None:
+    query = _build_query(
+        _profile(
+            company="StudioSouth",
+            service="Ecommerce UX design",
+            need="Improve online checkout conversion",
+            industry="Retail",
+            geography="Australia",
+        )
+    )
+
+    assert "StudioSouth" not in query
+    assert "professional email and phone" in query
+    assert "At least one correctly sourced email or phone is mandatory" in query
+    assert "Improve online checkout conversion" in query
 
 
 def test_keyword_queries_are_profile_driven_and_avoid_noisy_intent_terms() -> None:

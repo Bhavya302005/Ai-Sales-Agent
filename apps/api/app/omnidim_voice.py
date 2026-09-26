@@ -10,7 +10,17 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.contact_secrets import resolve_phone_number
-from app.persistence.models import Call, Company, Contact, ExternalMapping, Lead, Requirement, Workspace, Product, ProductVersion
+from app.persistence.models import (
+    Call,
+    Company,
+    Contact,
+    ExternalMapping,
+    Lead,
+    Product,
+    ProductVersion,
+    Requirement,
+    Workspace,
+)
 
 
 class OmniDimPermanentError(ValueError):
@@ -208,7 +218,12 @@ def provider_mapping(session: Session, *, call_id: UUID) -> ExternalMapping | No
 
 def _call_context(session: Session, call: Call, settings: Settings) -> dict[str, str]:
     row = session.execute(
-        select(Requirement.normalized_need, Company.normalized_name, Workspace.name, ProductVersion.description)
+        select(
+            Requirement.normalized_need,
+            Company.normalized_name,
+            Workspace.name,
+            ProductVersion.description,
+        )
         .join(Lead, Lead.requirement_id == Requirement.id)
         .outerjoin(Company, Company.id == Lead.company_id)
         .join(Workspace, Workspace.organization_id == call.organization_id)
@@ -217,7 +232,12 @@ def _call_context(session: Session, call: Call, settings: Settings) -> dict[str,
         .where(Lead.id == call.lead_id, Lead.organization_id == call.organization_id)
         .limit(1)
     ).one_or_none()
-    requirement, company, workspace_name, business_profile = row if row else ("Unknown", "Unknown company", "Your Company", "")
+    requirement, company, workspace_name, business_profile = row or (
+        "Unknown",
+        "Unknown company",
+        "Your Company",
+        "",
+    )
     context = {
         "call_id": str(call.id),
         "local_call_id": str(call.id),
@@ -227,9 +247,11 @@ def _call_context(session: Session, call: Call, settings: Settings) -> dict[str,
         "business_requirement": str(requirement or "Unknown")[:500],
         "consent_scope": "single consented hackathon qualification call",
         "booking_handoff_instruction": (
-            "If the lead explicitly asks for a human, ask whether you may text one Calendly "
-            "link and call once after 24 hours if they do not book. Invoke the configured "
-            "booking tool only after explicit consent; never claim delivery beyond its result."
+            "If the lead explicitly asks for a human, separately confirm whether you may send "
+            "one post-call summary and Calendly link by SMS and by email, and whether you may "
+            "call once after 24 hours if they do not book. Invoke the configured booking tool "
+            "only with the permissions explicitly confirmed for each channel; never claim "
+            "delivery beyond its result."
         ),
     }
     if settings.public_api_base_url:

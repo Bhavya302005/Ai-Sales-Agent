@@ -18,7 +18,6 @@ from app.auth import Auth
 from app.booking_followups.service import provider_event_id, queue_booking_link
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.jobs.service import process_event
 from app.notifications import notify_roles
 from app.persistence.models import (
     AuditLog,
@@ -41,6 +40,7 @@ WEBHOOK_TOLERANCE_SECONDS = 180
 class OmniDimBookingToolRequest(BaseModel):
     call_id: UUID
     sms_consent_confirmed: bool
+    email_consent_confirmed: bool = False
     retry_consent_confirmed: bool
 
 
@@ -67,11 +67,14 @@ def booking_integration_status(
     del auth
     return BookingIntegrationStatus(
         calendly_configured=bool(
-            settings.calendly_access_token
-            and settings.calendly_event_type_uri
-            and settings.calendly_organization_uri
-            and settings.calendly_webhook_signing_key
-            and settings.public_api_base_url
+            settings.calendly_scheduling_url
+            or (
+                settings.calendly_access_token
+                and settings.calendly_event_type_uri
+                and settings.calendly_organization_uri
+                and settings.calendly_webhook_signing_key
+                and settings.public_api_base_url
+            )
         ),
         sms_mode=settings.sms_mode,
         sms_live=settings.sms_mode in {"twilio", "textbee"},
@@ -125,6 +128,7 @@ def send_booking_link(
             call=call,
             settings=settings,
             sms_consent_confirmed=payload.sms_consent_confirmed,
+            email_consent_confirmed=payload.email_consent_confirmed,
             retry_consent_confirmed=payload.retry_consent_confirmed,
         )
     except LookupError as exc:
@@ -156,12 +160,8 @@ def send_booking_link(
                 OutboxEvent.state.in_(["pending", "retry_wait"]),
             )
         )
-    if event_id and settings.async_mode == "inline":
-        process_event(session, event_id)
-    elif event_id and settings.async_mode == "celery" and queued.created:
-        from app.worker import process_outbox_event
-
-        process_outbox_event.delay(str(event_id))
+    # Delivery is intentionally deferred. The completed-call synchronizer dispatches this
+    # event only after the final transcript has produced a human handoff and qualification.
     session.refresh(queued.followup)
     return OmniDimBookingToolResponse(
         followup_id=queued.followup.id,

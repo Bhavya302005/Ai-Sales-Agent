@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import html
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -8,7 +11,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.booking_followups.providers import CalendlyClient, sms_sender
+from app.booking_followups.providers import CalendlyClient, sms_sender, tracked_calendly_link
 from app.calling.service import request_call
 from app.config import Settings
 from app.contact_secrets import resolve_phone_number
@@ -23,10 +26,13 @@ from app.persistence.models import (
     ConsentRecord,
     Contact,
     ExternalMapping,
+    FieldAssertion,
     HandoffTask,
     Membership,
+    Qualification,
     Suppression,
 )
+from app.repositories.leads import LeadRepository
 
 
 @dataclass(frozen=True)
@@ -104,12 +110,15 @@ def queue_booking_link(
     settings: Settings,
     sms_consent_confirmed: bool,
     retry_consent_confirmed: bool,
+    email_consent_confirmed: bool = False,
 ) -> BookingQueueResult:
     if not sms_consent_confirmed:
         raise ValueError("Explicit SMS consent is required")
     if settings.sms_mode == "disabled":
         raise ValueError("SMS delivery is disabled")
-    if not settings.calendly_access_token or not settings.calendly_event_type_uri:
+    if not settings.calendly_scheduling_url and (
+        not settings.calendly_access_token or not settings.calendly_event_type_uri
+    ):
         raise ValueError("Calendly is not configured")
     mapping = session.scalar(
         select(ExternalMapping).where(
@@ -155,6 +164,15 @@ def queue_booking_link(
         scope="one_calendly_booking_link",
         expires_at=now + timedelta(hours=48),
     )
+    if email_consent_confirmed:
+        _record_consent(
+            session,
+            call=call,
+            purpose="calendly_booking_followup",
+            channel="email",
+            scope="one_post_call_summary_and_calendly_link",
+            expires_at=now + timedelta(hours=48),
+        )
     if retry_consent_confirmed:
         _record_consent(
             session,
@@ -190,6 +208,139 @@ def queue_booking_link(
         payload_ref=f"booking_followup:{followup.id}",
     )
     return BookingQueueResult(followup, True, queued.event.event_id)
+
+
+def _clean_summary(value: str | None, *, limit: int = 240) -> str:
+    cleaned = re.sub(r"\s+", " ", value or "").strip()
+    cleaned = re.sub(
+        r"^(?:confirmed|the lead confirmed|the participant confirmed)\s*:?\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip(" -:;,.?")[:limit].rstrip()
+
+
+def _followup_copy(
+    session: Session,
+    *,
+    call: Call,
+    contact: Contact,
+    calendly_link: str,
+    sender_name: str,
+) -> tuple[str, str, str]:
+    """Compose bounded, evidence-grounded SMS and email copy for the completed call."""
+    record = LeadRepository(session, call.organization_id).get(call.lead_id)
+    if record is None:
+        raise LookupError("Booking lead does not exist")
+    qualification = session.scalar(
+        select(Qualification).where(
+            Qualification.organization_id == call.organization_id,
+            Qualification.call_id == call.id,
+        )
+    )
+    published_need = _clean_summary(record.requirement.normalized_need, limit=180)
+    discussion_points = [
+        ("Requirement", _clean_summary(qualification.need) if qualification else ""),
+        ("Scope", _clean_summary(qualification.scope) if qualification else ""),
+        ("Timeline", _clean_summary(qualification.timeline) if qualification else ""),
+        (
+            "Next step",
+            _clean_summary(qualification.requested_next_step) if qualification else "",
+        ),
+    ]
+    seen_points: set[str] = set()
+    discussed: list[tuple[str, str]] = []
+    for label, value in discussion_points:
+        normalized = value.casefold()
+        if value and normalized not in seen_points:
+            seen_points.add(normalized)
+            discussed.append((label, value))
+    discussed = discussed[:4]
+    solution = _clean_summary(record.product_version.description, limit=320)
+    first_name = html.escape(contact.display_name.split()[0]) if contact.display_name else "there"
+    safe_sender = html.escape(sender_name)
+    safe_link = html.escape(calendly_link, quote=True)
+    safe_need = html.escape(published_need)
+    safe_solution = html.escape(solution)
+    discussion_html = "".join(
+        f"<li><strong>{label}:</strong> {html.escape(value)}</li>" for label, value in discussed
+    )
+    discussion_block = (
+        f"<p>Here is a brief recap of our conversation:</p><ul>{discussion_html}</ul>"
+        if discussion_html
+        else ""
+    )
+    company_name = record.company.normalized_name if record.company else "your team"
+    subject_need = _clean_summary(record.requirement.normalized_need, limit=55)
+    subject = f"Next steps: {subject_need or company_name}"[:120]
+    body_html = (
+        f"<p>Hello {first_name},</p>"
+        f"<p>Thank you for taking the time to speak with {safe_sender}. I’m following up "
+        f"regarding your team’s requirement for {safe_need}.</p>"
+        f"{discussion_block}"
+        f"<p>Based on what you shared, the following part of our offering is relevant to "
+        f"the next conversation: {safe_solution}</p>"
+        f"<p>Please choose a convenient time for the follow-up here: "
+        f'<a href="{safe_link}">Book a meeting</a>.</p>'
+        f"<p>Best regards,<br>{safe_sender}</p>"
+    )
+    sms_topic = _clean_summary(
+        qualification.need if qualification and qualification.need else published_need,
+        limit=85,
+    )
+    sms = (
+        f"Hi {contact.display_name.split()[0] if contact.display_name else 'there'}, thank you "
+        f"for speaking with {sender_name}. As discussed, the next step for {sms_topic} is a "
+        f"follow-up with our team. Choose a convenient time: {calendly_link} "
+        f"Reply STOP to opt out."
+    )
+    return subject, body_html, sms
+
+
+def _recipient_email(session: Session, *, call: Call) -> str | None:
+    assertion = session.scalar(
+        select(FieldAssertion)
+        .where(
+            FieldAssertion.organization_id == call.organization_id,
+            FieldAssertion.entity_type == "lead",
+            FieldAssertion.entity_id == call.lead_id,
+            FieldAssertion.field_name == "email",
+        )
+        .order_by(FieldAssertion.observed_at.desc())
+    )
+    value = assertion.value.get("email") if assertion and assertion.value else None
+    if not value:
+        record = LeadRepository(session, call.organization_id).get(call.lead_id)
+        value = (
+            (record.source.provider_metadata or {}).get("best_email")
+            if record is not None
+            else None
+        )
+    return str(value).strip().casefold() if value else None
+
+
+def _email_allowed(session: Session, *, call: Call, recipient: str, now: datetime) -> bool:
+    consent = session.scalar(
+        select(ConsentRecord.id).where(
+            ConsentRecord.organization_id == call.organization_id,
+            ConsentRecord.contact_id == call.contact_id,
+            ConsentRecord.channel == "email",
+            ConsentRecord.purpose == "calendly_booking_followup",
+            ConsentRecord.status == "active",
+            ConsentRecord.expires_at > now,
+        )
+    )
+    email_hash = hashlib.sha256(recipient.encode()).hexdigest()
+    suppressed = session.scalar(
+        select(Suppression.id).where(
+            Suppression.organization_id == call.organization_id,
+            Suppression.identifier_hash == email_hash,
+            Suppression.channel.in_(["email", "all"]),
+            or_(Suppression.expires_at.is_(None), Suppression.expires_at > now),
+        )
+    )
+    return consent is not None and suppressed is None
 
 
 def process_link_send(
@@ -232,13 +383,18 @@ def process_link_send(
         followup.last_error_code = "sms_suppressed"
         return
     if not followup.calendly_link:
-        calendly = CalendlyClient(settings)
-        try:
-            followup.calendly_link = calendly.create_single_use_link(
-                correlation_token=followup.correlation_token
+        if settings.calendly_scheduling_url:
+            followup.calendly_link = tracked_calendly_link(
+                settings.calendly_scheduling_url, correlation_token=followup.correlation_token
             )
-        finally:
-            calendly.close()
+        else:
+            calendly = CalendlyClient(settings)
+            try:
+                followup.calendly_link = calendly.create_single_use_link(
+                    correlation_token=followup.correlation_token
+                )
+            finally:
+                calendly.close()
         # Calendly does not accept our idempotency key. Persist the one provider-created
         # URL before the independently retryable SMS step so a worker restart cannot mint
         # a second link for the same call.
@@ -259,73 +415,48 @@ def process_link_send(
         else resolve_phone_number(contact.identifier_encrypted_ref, settings)
     )
     company_name = settings.email_from_name or "us"
+    call_obj = session.scalar(
+        select(Call).where(
+            Call.organization_id == organization_id,
+            Call.id == followup.call_id,
+        )
+    )
+    if call_obj is None:
+        raise LookupError("Booking call does not exist")
+    subject, body_html, sms_body = _followup_copy(
+        session,
+        call=call_obj,
+        contact=contact,
+        calendly_link=followup.calendly_link,
+        sender_name=company_name,
+    )
     delivery = sms_sender(settings).send(
         destination=destination,
-        body=(
-            f"Thanks for speaking with {company_name}. Book a preferred time with our team: "
-            f"{followup.calendly_link} Reply STOP to stop messages."
-        ),
+        body=sms_body,
         idempotency_key=str(followup.id),
     )
-    
-    # Try sending via Email as well if we have an email address for this lead
+
+    # Send the same grounded follow-up by email only when that channel was explicitly
+    # confirmed in the call and the address is not suppressed.
     try:
-        from app.email_outreach.models import EmailOutreachDraft
         from app.email_outreach.sender import send_email
-        from app.persistence.models import FieldAssertion
-        import asyncio
-        
-        call_obj = session.scalar(select(Call).where(Call.id == followup.call_id))
-        if call_obj and call_obj.lead_id:
-            recipient_email = None
-            
-            # First check FieldAssertion (which is where the CSV import saves the email)
-            email_assertion = session.scalar(
-                select(FieldAssertion)
-                .where(
-                    FieldAssertion.organization_id == organization_id,
-                    FieldAssertion.entity_type == "lead",
-                    FieldAssertion.entity_id == call_obj.lead_id,
-                    FieldAssertion.field_name == "email",
+
+        recipient_email = _recipient_email(session, call=call_obj)
+        if recipient_email and _email_allowed(
+            session, call=call_obj, recipient=recipient_email, now=now
+        ):
+            asyncio.run(
+                send_email(
+                    to_address=recipient_email,
+                    subject=subject,
+                    body_html=body_html,
+                    draft_id=str(followup.id),
                 )
-                .order_by(FieldAssertion.observed_at.desc())
             )
-            if email_assertion and email_assertion.value:
-                recipient_email = email_assertion.value.get("email")
-                
-            # Fallback to checking EmailOutreachDraft if the user manually entered it there
-            if not recipient_email:
-                draft = session.scalar(
-                    select(EmailOutreachDraft)
-                    .where(
-                        EmailOutreachDraft.organization_id == organization_id,
-                        EmailOutreachDraft.lead_id == call_obj.lead_id,
-                    )
-                    .order_by(EmailOutreachDraft.created_at.desc())
-                )
-                if draft:
-                    recipient_email = draft.recipient_email
-                    
-            if recipient_email:
-                greeting = f"Hello {contact.display_name.split()[0]}," if contact and contact.display_name else "Hello,"
-                company_name = settings.email_from_name or "us"
-                body_html = (
-                    f"<p>{greeting}</p>"
-                    f"<p>Thanks for speaking with {company_name}. "
-                    f"Book a preferred time with our team here:<br><br>"
-                    f"<a href='{followup.calendly_link}'>{followup.calendly_link}</a></p>"
-                )
-                asyncio.run(
-                    send_email(
-                        to_address=recipient_email,
-                        subject=f"Your meeting with {company_name}",
-                        body_html=body_html,
-                        draft_id=str(followup.id),
-                    )
-                )
     except Exception as exc:
         import logging
-        logging.getLogger(__name__).error(f"Failed to send booking link via email: {exc}")
+
+        logging.getLogger(__name__).error("Failed to send booking follow-up email: %s", exc)
     followup.provider_message_id = delivery.provider_message_id
     followup.delivery_mode = delivery.provider
     followup.delivery_status = "simulated" if delivery.simulated else "sent"

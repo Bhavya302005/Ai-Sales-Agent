@@ -21,8 +21,12 @@ from sqlalchemy import create_engine, func, inspect, select
 from sqlalchemy.orm import Session
 from twilio.request_validator import RequestValidator
 
-from app.booking_followups.providers import CalendlyClient, ProviderRetryableError
-from app.booking_followups.service import process_due_booking_retries
+from app.booking_followups.providers import (
+    CalendlyClient,
+    ProviderRetryableError,
+    tracked_calendly_link,
+)
+from app.booking_followups.service import _followup_copy, process_due_booking_retries
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.demo_ids import CAMPAIGN_ID, CONTACT_ID, LEAD_ID, ORGANIZATION_ID
@@ -39,6 +43,7 @@ from app.persistence.models import (
     ExternalMapping,
     HandoffTask,
     ProviderWebhookEvent,
+    Qualification,
     Suppression,
 )
 
@@ -107,6 +112,21 @@ def test_calendly_single_use_link_has_opaque_tracking_and_safe_retry_error() -> 
     else:
         raise AssertionError("Calendly 503 must be retryable")
     unavailable_http.close()
+
+
+def test_fixed_calendly_url_gets_opaque_handoff_tracking() -> None:
+    link = tracked_calendly_link(
+        "https://calendly.com/acme/30min?month=2026-09",
+        correlation_token="opaque-token",
+    )
+
+    assert parse_qs(urlsplit(link).query) == {
+        "month": ["2026-09"],
+        "utm_source": ["signalpath"],
+        "utm_medium": ["sms_email"],
+        "utm_campaign": ["human_handoff"],
+        "utm_content": ["opaque-token"],
+    }
 
 
 @contextmanager
@@ -210,6 +230,7 @@ def test_omnidim_tool_requires_explicit_consent_and_is_idempotent(
             json={
                 "call_id": str(call.id),
                 "sms_consent_confirmed": True,
+                "email_consent_confirmed": True,
                 "retry_consent_confirmed": True,
             },
         )
@@ -225,12 +246,54 @@ def test_omnidim_tool_requires_explicit_consent_and_is_idempotent(
 
         assert denied.status_code == 409
         assert first.status_code == 200
-        assert first.json()["delivery_status"] == "simulated"
-        assert "simulated mode" in first.json()["safe_agent_message"]
+        assert first.json()["delivery_status"] == "pending"
+        assert "queued" in first.json()["safe_agent_message"]
         assert replay.json()["followup_id"] == first.json()["followup_id"]
         assert session.scalar(select(func.count()).select_from(BookingFollowup)) == 1
         purposes = set(session.scalars(select(ConsentRecord.purpose)).all())
-        assert {"calendly_booking_link", "calendly_booking_retry"} <= purposes
+        assert {
+            "calendly_booking_link",
+            "calendly_booking_followup",
+            "calendly_booking_retry",
+        } <= purposes
+
+
+def test_followup_copy_uses_lead_solution_and_finalized_call_summary(tmp_path: Path) -> None:
+    with _client(tmp_path / "grounded-copy.db") as (_, _, session, call):
+        contact = session.get(Contact, CONTACT_ID)
+        assert contact is not None
+        session.add(
+            Qualification(
+                organization_id=ORGANIZATION_ID,
+                call_id=call.id,
+                need="The lead confirmed the ERP migration is active.",
+                timeline="They want to begin next quarter.",
+                scope="Three manufacturing locations are in scope.",
+                authority_known=True,
+                budget_known=None,
+                objections=[],
+                interest="positive",
+                requested_next_step="Send a scheduling link.",
+                evidence_segment_ids=[],
+            )
+        )
+        session.flush()
+
+        subject, body_html, sms = _followup_copy(
+            session,
+            call=call,
+            contact=contact,
+            calendly_link="https://calendly.com/d/example/meeting",
+            sender_name="SignalPath",
+        )
+
+        assert subject.startswith("Next steps:")
+        assert "<strong>Requirement:</strong> the ERP migration is active" in body_html
+        assert "<strong>Scope:</strong> Three manufacturing locations" in body_html
+        assert "brief recap of our conversation" in body_html
+        assert "https://calendly.com/d/example/meeting" in body_html
+        assert "the next step for the ERP migration is active" in sms
+        assert "Reply STOP to opt out" in sms
 
 
 def test_signed_calendly_webhook_books_callback_and_deduplicates(
@@ -515,13 +578,16 @@ def test_textbee_sms_sender(monkeypatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers.get("x-api-key") == "fake-key"
         if "device-123" in str(request.url):
-            return httpx.Response(200, json={"data": {"id": "msg-999"}}, headers={"content-type": "application/json"})
+            return httpx.Response(
+                200, json={"data": {"id": "msg-999"}}, headers={"content-type": "application/json"}
+            )
         return httpx.Response(400, text="Bad device")
 
-    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://api.textbee.dev/api/v1")
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler), base_url="https://api.textbee.dev/api/v1"
+    )
     sender = TextBeeSmsSender(settings, client=client)
     res = sender.send(destination="+917984781611", body="Test SMS", idempotency_key="idemp-1")
     assert res.provider == "textbee"
     assert res.provider_message_id == "msg-999"
     assert res.simulated is False
-

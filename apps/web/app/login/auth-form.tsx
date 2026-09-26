@@ -66,7 +66,7 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
         </div>
       ) : null}
 
-      <form className="auth-form" onSubmit={handleSubmit}>
+      <form className="auth-form" method="post" onSubmit={handleSubmit}>
         <input name="returnTo" type="hidden" value={returnTo} />
 
         <div className="auth-field">

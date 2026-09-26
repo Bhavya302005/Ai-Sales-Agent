@@ -46,4 +46,13 @@ describe("AuthForm (Admin Only)", () => {
 
     expect(signInWithCredentials).toHaveBeenCalledTimes(1);
   });
+
+  it("never falls back to putting credentials in the URL before hydration", () => {
+    render(<AuthForm />);
+
+    expect(screen.getByRole("button", { name: /^Sign In as Admin$/i }).closest("form")).toHaveAttribute(
+      "method",
+      "post",
+    );
+  });
 });

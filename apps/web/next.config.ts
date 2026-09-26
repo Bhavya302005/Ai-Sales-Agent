@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app"],
+  experimental: {
+    serverActions: {
+      allowedOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app"],
+    },
+  },
   async headers() {
     const isDevelopment = process.env.NODE_ENV === "development";
     const configuredOrigins = [
@@ -46,4 +52,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-

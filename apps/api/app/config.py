@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "staging", "production"] = "development"
     database_url: str = Field(
         default="postgresql+psycopg://sales_agent:sales_agent@localhost:5432/sales_agent",
-        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL")
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL"),
     )
 
     @field_validator("database_url", mode="before")
@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     calendly_event_type_uri: str | None = None
     calendly_organization_uri: str | None = None
     calendly_webhook_signing_key: SecretStr | None = None
+    calendly_scheduling_url: str | None = None
     public_api_base_url: str | None = None
     omnidim_tool_secret: SecretStr | None = None
     sms_mode: Literal["disabled", "mock", "twilio", "textbee"] = "disabled"
@@ -169,9 +170,7 @@ class Settings(BaseSettings):
                 )
         if self.sms_mode == "textbee":
             if not (self.textbee_api_key and self.textbee_device_id):
-                raise ValueError(
-                    "SMS_MODE=textbee requires TEXTBEE_API_KEY and TEXTBEE_DEVICE_ID"
-                )
+                raise ValueError("SMS_MODE=textbee requires TEXTBEE_API_KEY and TEXTBEE_DEVICE_ID")
         for name, value, expected_host in (
             ("CALENDLY_EVENT_TYPE_URI", self.calendly_event_type_uri, "api.calendly.com"),
             ("CALENDLY_ORGANIZATION_URI", self.calendly_organization_uri, "api.calendly.com"),
@@ -180,6 +179,19 @@ class Settings(BaseSettings):
                 parsed = urlparse(value)
                 if parsed.scheme != "https" or parsed.hostname != expected_host:
                     raise ValueError(f"{name} must be an official Calendly HTTPS URI")
+        if self.calendly_scheduling_url:
+            parsed_scheduling = urlparse(self.calendly_scheduling_url)
+            scheduling_host = (parsed_scheduling.hostname or "").lower()
+            if (
+                parsed_scheduling.scheme != "https"
+                or not (
+                    scheduling_host == "calendly.com" or scheduling_host.endswith(".calendly.com")
+                )
+                or parsed_scheduling.username
+                or parsed_scheduling.password
+                or parsed_scheduling.fragment
+            ):
+                raise ValueError("CALENDLY_SCHEDULING_URL must be an official Calendly HTTPS URL")
         if self.public_api_base_url:
             parsed_public = urlparse(self.public_api_base_url)
             if (

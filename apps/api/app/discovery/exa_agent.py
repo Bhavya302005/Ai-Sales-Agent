@@ -56,6 +56,14 @@ LEAD_OUTPUT_SCHEMA: dict[str, Any] = {
                     "contact_title": {"type": "string"},
                     "email": {"type": "string"},
                     "phone": {"type": "string"},
+                    "contact_source_url": {
+                        "type": "string",
+                        "description": "Exact public page where the returned email or phone is visibly published.",
+                    },
+                    "contact_evidence": {
+                        "type": "string",
+                        "description": "Short source-backed text identifying the contact channel and tying it to the buyer organization or named contact.",
+                    },
                     "company_website": {"type": "string"},
                     "company_linkedin": {"type": "string"},
                     "geography": {"type": "string"},
@@ -96,6 +104,10 @@ LEAD_OUTPUT_SCHEMA: dict[str, Any] = {
                 },
                 "required": [
                     "company_name",
+                    "email",
+                    "phone",
+                    "contact_source_url",
+                    "contact_evidence",
                     "requirement",
                     "buying_intent_signal",
                     "buyer_evidence",
@@ -215,7 +227,21 @@ Observed false-positive patterns that must be rejected:
 6. CONTACT GROUNDING: If an executive, founder, or project owner is mentioned in the post, capture their contact_name and contact_title. Otherwise leave as null. Do not invent fictitious contact details.
 7. RECENCY: You must only return leads and opportunities posted within the last 14 days. Reject missing, unverifiable, future, older, completed, awarded, cancelled, or closed dates/requirements.
 8. UNCERTAINTY: When buyer identity, outsourcing intent, fit, source evidence, publication date, or open status is unclear, reject the result. Do not fill gaps with assumptions.
-9. OUTPUT LABELS: Set lead_role='buyer', external_provider_requested=true, and requirement_status='open' only when the source proves those claims. Provider or unclear results must not be returned."""
+9. OUTPUT LABELS: Set lead_role='buyer', external_provider_requested=true, and requirement_status='open' only when the source proves those claims. Provider or unclear results must not be returned.
+
+== CONTACT DISCOVERY — REQUIRED SECOND STAGE ==
+Only after a candidate passes every buyer, intent, fit, and recency rule above, research public contact information for that exact buying organization. This is part of the same Exa research run; do not use or assume data from any other enrichment provider.
+
+For every returned lead:
+1. Prefer BOTH a publicly published professional email and a callable phone number. At minimum, one of email or phone MUST be present; otherwise do not return the lead.
+2. Search the original requirement/RFP/tender, its public attachments, and the buyer's official website contact, procurement, leadership, or team pages. A public official buyer page may be used as contact_source_url even when source_url remains the original requirement page.
+3. Prefer the named request owner, procurement contact, relevant executive, founder, or department contact. If no person-level contact is publicly published, an official company procurement/general business email or phone is acceptable and must not be presented as a personal contact.
+4. Copy contact values exactly as publicly displayed. Never infer an email pattern, guess a mailbox, manufacture a phone number, convert a company switchboard into a mobile number, or use a contact belonging to an aggregator, publisher, recruiter, competing provider, or similarly named company.
+5. An email must have a syntactically valid address and belong to the buyer's official domain, or be explicitly published by the buyer in the original request. Reject masked, partial, example, disposable, or guessed emails.
+6. A phone must include a country code when the source provides it. Prefer explicitly labelled mobile, direct, or WhatsApp numbers; otherwise retain an official business number without claiming it is mobile.
+7. Set contact_source_url to the exact public page containing the returned contact value. Set contact_evidence to concise text that proves the value belongs to the buyer or named contact. Do not cite a search-results page or merely the company homepage unless the contact is visibly published there.
+8. If email and phone come from different official pages, include both URLs in contact_source_url separated by a space and explain the mapping in contact_evidence.
+9. Contact availability never rescues an otherwise weak lead. First prove a current buyer requirement; then prove at least one correctly associated contact channel. If either proof fails, reject the result."""
 
     return prompt
 
@@ -248,7 +274,9 @@ def _build_query(product_version: Any) -> str:
         f"Use the active profile only; do not substitute another industry, geography, or service. "
         f"Reject companies promoting, providing, showcasing, discussing, or announcing completed work in those areas; they are providers or non-buyers. "
         f"Reject job posts, recruitment, directories, listicles, case studies, portfolios, tutorials, internal projects, completed/closed requests, and pages without a verifiable publication date. "
-        f"Return only the original request page where the named buyer explicitly asks to buy or outsource one of: {requirement_str}."
+        f"Return only the original request page where the named buyer explicitly asks to buy or outsource one of: {requirement_str}. "
+        f"For each otherwise-qualified buyer, perform a second Exa research pass over the original request and that buyer's official public pages to find both a professional email and phone when available. "
+        f"At least one correctly sourced email or phone is mandatory; reject candidates with neither and never guess contact data."
     )
 
 
@@ -275,6 +303,24 @@ def _is_qualified_buyer_lead(lead: dict[str, Any], *, now: datetime | None = Non
     ):
         return False
     if not str(lead["source_url"]).startswith("https://"):
+        return False
+    email = str(lead.get("email", "")).strip()
+    phone = str(lead.get("phone", "")).strip()
+    if not email and not phone:
+        return False
+    if email and ("@" not in email or "." not in email.rsplit("@", 1)[-1]):
+        return False
+    if phone and len("".join(character for character in phone if character.isdigit())) < 8:
+        return False
+    if not all(
+        str(lead.get(field, "")).strip()
+        for field in ("contact_source_url", "contact_evidence")
+    ):
+        return False
+    if not all(
+        url.startswith("https://")
+        for url in str(lead["contact_source_url"]).split()
+    ):
         return False
     try:
         score = int(lead.get("fit_score", 0))
@@ -372,6 +418,8 @@ def exa_agent_leads_to_discovery_items(
             ("Fit", "fit_reason"),
             ("Email", "email"),
             ("Phone", "phone"),
+            ("Contact Source", "contact_source_url"),
+            ("Contact Evidence", "contact_evidence"),
         ]:
             val = lead.get(key)
             if val:
@@ -419,6 +467,8 @@ def exa_agent_leads_to_discovery_items(
                     "best_email": lead.get("email", ""),
                     "best_phone": lead.get("phone", ""),
                     "enriched": bool(lead.get("email") or lead.get("phone")),
+                    "contact_source_url": lead.get("contact_source_url", ""),
+                    "contact_evidence": lead.get("contact_evidence", ""),
                 },
             )
             items.append(item)

@@ -15,7 +15,7 @@ from app.calling.service import ACTIVE_CALL_STATES, request_call
 from app.config import Settings, get_settings
 from app.contact_secrets import is_dialable_phone_ref
 from app.db import get_session
-from app.jobs.service import IdempotencyConflict
+from app.jobs.service import IdempotencyConflict, process_event
 from app.omnidim_voice import (
     OmniDimClient,
     OmniDimPermanentError,
@@ -28,6 +28,7 @@ from app.omnidim_voice import (
 from app.outcomes.service import finalize_completed_call
 from app.persistence.models import (
     AuditLog,
+    BookingFollowup,
     Call,
     Campaign,
     CampaignLead,
@@ -35,6 +36,7 @@ from app.persistence.models import (
     Contact,
     HandoffTask,
     Lead,
+    OutboxEvent,
     Qualification,
     TranscriptSegment,
     Workspace,
@@ -416,6 +418,7 @@ def _sync_single_omnidim_call(
         "provider_recording_url": result.recording_url,
         "reservation_status": "released" if terminal else "reserved",
     }
+    followup_event_id: UUID | None = None
     if result.status == "completed":
         call.state = "completed"
         call.ended_at = call.ended_at or datetime.now(UTC)
@@ -425,10 +428,28 @@ def _sync_single_omnidim_call(
             else "completed"
         )
         session.flush()
-        finalize_completed_call(
+        finalized = finalize_completed_call(
             session,
             organization_id=organization_id,
             call_id=call.id,
+        )
+        followup_event_id = (
+            session.scalar(
+                select(OutboxEvent.event_id).where(
+                    OutboxEvent.organization_id == organization_id,
+                    OutboxEvent.aggregate_type == "booking_followup",
+                    OutboxEvent.aggregate_id
+                    == select(BookingFollowup.id)
+                    .where(
+                        BookingFollowup.organization_id == organization_id,
+                        BookingFollowup.call_id == call.id,
+                    )
+                    .scalar_subquery(),
+                    OutboxEvent.state.in_(["pending", "retry_wait"]),
+                )
+            )
+            if finalized.handoff is not None
+            else None
         )
     elif result.status in {"busy", "no_answer"}:
         call.state = "failed"
@@ -442,6 +463,13 @@ def _sync_single_omnidim_call(
         call.state = "active"
         call.started_at = call.started_at or datetime.now(UTC)
     session.commit()
+    if result.status == "completed" and followup_event_id:
+        if settings.async_mode == "inline":
+            process_event(session, followup_event_id)
+        elif settings.async_mode == "celery":
+            from app.worker import process_outbox_event
+
+            process_outbox_event.delay(str(followup_event_id))
     return True
 
 
@@ -475,7 +503,11 @@ def _campaign_lead_response(
         .order_by(Call.created_at.desc())
         .limit(1)
     )
-    if latest_call and latest_call.transport == "omnidim" and latest_call.state in {"connecting", "active", "ending"}:
+    if (
+        latest_call
+        and latest_call.transport == "omnidim"
+        and latest_call.state in {"connecting", "active", "ending"}
+    ):
         try:
             _sync_single_omnidim_call(session, latest_call, get_settings(), organization_id)
             session.refresh(latest_call)
@@ -674,9 +706,7 @@ def remove_campaign_leads(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete(
-    "/campaigns/{campaign_id}/leads/{lead_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/campaigns/{campaign_id}/leads/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_campaign_lead(
     campaign_id: UUID,
     lead_id: UUID,
@@ -762,10 +792,10 @@ def attest_pstn_consent(
         )
     )
     if contact is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Phone contact not found"
-        )
-    if not contact.demo_test_contact and not is_dialable_phone_ref(contact.identifier_encrypted_ref):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Phone contact not found")
+    if not contact.demo_test_contact and not is_dialable_phone_ref(
+        contact.identifier_encrypted_ref
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Contact number is not securely available; re-import this contact",
@@ -935,8 +965,14 @@ def get_provider_recording(
     if call.transport != "omnidim":
         raise HTTPException(status_code=409, detail="Recording is not provided by OmniDimension")
     # Use cached URL from usage blob first (avoids re-fetching call logs)
-    recording_url = call.usage.get("provider_recording_url") if isinstance(call.usage, dict) else None
-    if not recording_url or not isinstance(recording_url, str) or not recording_url.startswith("https://"):
+    recording_url = (
+        call.usage.get("provider_recording_url") if isinstance(call.usage, dict) else None
+    )
+    if (
+        not recording_url
+        or not isinstance(recording_url, str)
+        or not recording_url.startswith("https://")
+    ):
         # Fall back: re-fetch from OmniDimension
         mapping = omnidim_provider_mapping(session, call_id=call.id)
         if mapping is None:
@@ -957,15 +993,18 @@ def get_provider_recording(
         session.commit()
     # Proxy the audio bytes so the browser avoids cross-origin CORS restrictions
     import httpx as _httpx
+
     try:
-        resp = _httpx.get(recording_url, timeout=_httpx.Timeout(30, connect=5), follow_redirects=True)
+        resp = _httpx.get(
+            recording_url, timeout=_httpx.Timeout(30, connect=5), follow_redirects=True
+        )
         resp.raise_for_status()
     except _httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="Recording temporarily unavailable") from exc
     content_type = resp.headers.get("content-type", "audio/mpeg").split(";")[0].strip()
     if not content_type.startswith("audio/"):
         content_type = "audio/mpeg"
-    
+
     audio_bytes = resp.content
     total_bytes = len(audio_bytes)
     range_header = request.headers.get("range")

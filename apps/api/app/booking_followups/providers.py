@@ -100,7 +100,11 @@ class TextBeeSmsSender:
             raise ProviderPermanentError(f"TextBee rejected the SMS: {response.text}")
         if response.status_code >= 500 or response.status_code == 429:
             raise ProviderRetryableError("TextBee messaging is temporarily unavailable")
-        data = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+        data = (
+            response.json()
+            if response.headers.get("content-type", "").startswith("application/json")
+            else {}
+        )
         message_id = str(data.get("data", {}).get("id") or data.get("id") or "textbee-sent")
         return SmsDelivery(provider="textbee", provider_message_id=message_id, simulated=False)
 
@@ -169,3 +173,22 @@ class CalendlyClient:
             }
         )
         return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ""))
+
+
+def tracked_calendly_link(url: str, *, correlation_token: str) -> str:
+    """Attach opaque handoff tracking to a configured public Calendly scheduling URL."""
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    trusted_host = host == "calendly.com" or host.endswith(".calendly.com")
+    if parsed.scheme != "https" or not trusted_host:
+        raise ProviderPermanentError("Configured Calendly scheduling URL is not trusted")
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.update(
+        {
+            "utm_source": "signalpath",
+            "utm_medium": "sms_email",
+            "utm_campaign": "human_handoff",
+            "utm_content": correlation_token,
+        }
+    )
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ""))

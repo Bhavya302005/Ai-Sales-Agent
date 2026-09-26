@@ -33,7 +33,7 @@ def _summary(record: LeadRecord) -> LeadSummaryResponse:
         contact_name=contact_name,
         normalized_need=record.requirement.normalized_need,
         source_url=record.source.canonical_url,
-        published_at=record.source.published_at or record.source.observed_at,
+        published_at=record.source.published_at,
         score=record.score.score if record.score else None,
         score_confidence=float(record.score.confidence) if record.score else None,
         best_phone=meta.get("best_phone") or None,

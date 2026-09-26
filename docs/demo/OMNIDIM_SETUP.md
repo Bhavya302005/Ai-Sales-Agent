@@ -34,11 +34,12 @@ or other sensitive data.
 Ask concise questions about need, current environment, scope, desired outcome, timeline, decision
 process, and whether a budget range is known. Preserve unknown answers as unknown. Answer only from
 the approved agent knowledge. Speak in English or Hindi according to the participant's preference.
-If the participant asks for a human, ask one combined but explicit question: "May I text you a
-Calendly link, and if you do not book, may we call you once more within 48 hours?" Call the
-`send-booking-link` tool only after the participant explicitly answers both parts. Read only the
-tool's `safe_agent_message`. Never read the URL aloud, invent delivery success, or call the tool
-after an unclear answer. End politely after a recap.
+If the participant asks for a human, ask one combined but explicit question: "May I send you a
+brief summary and Calendly link by text and email, and if you do not book, may we call you once
+more within 48 hours?" Record permission for SMS, email, and the retry separately. Call the
+`send-booking-link` tool only with the permissions explicitly confirmed for each channel. Read
+only the tool's `safe_agent_message`. Never read the URL aloud, invent delivery success, or call
+the tool after an unclear answer. End politely after a recap.
 ```
 
 Configure these extracted variables with conservative prompts:
@@ -51,6 +52,8 @@ Configure these extracted variables with conservative prompts:
 - `authority_known` and `budget_known`: `yes`, `no`, or `unknown`.
 - `callback_requested`: `confirmed`, `declined`, or `unknown`.
 - `sms_consent_confirmed`: `yes` only after explicit permission, otherwise `no` or `unknown`.
+- `email_consent_confirmed`: `yes` only after explicit permission to send the post-call summary
+  and Calendly link by email; otherwise `no` or `unknown`.
 - `booking_retry_consent_confirmed`: `yes` only after explicit one-retry permission, otherwise
   `no` or `unknown`.
 
@@ -59,7 +62,8 @@ Configure an OmniDimension custom function named `send-booking-link`:
 - Method: `POST`
 - URL: `<PUBLIC_API_BASE_URL>/api/v1/provider-tools/omnidim/send-booking-link`
 - Header: `X-Omnidim-Tool-Secret: <OMNIDIM_TOOL_SECRET>`
-- JSON body: `call_id`, `sms_consent_confirmed`, and `retry_consent_confirmed`
+- JSON body: `call_id`, `sms_consent_confirmed`, `email_consent_confirmed`, and
+  `retry_consent_confirmed`
 
 The call ID is supplied in the dynamic call context. The function must not accept a phone number,
 organization ID, or booking URL.

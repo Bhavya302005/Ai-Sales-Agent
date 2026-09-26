@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Albert_Sans, Fragment_Mono } from "next/font/google";
 
 import "./globals.css";
+import { PwaLifecycle } from "./pwa-lifecycle";
 
 const albertSans = Albert_Sans({
   subsets: ["latin"],
@@ -22,7 +23,19 @@ export const metadata: Metadata = {
   description: "A bounded, explainable AI sales qualification workflow.",
   applicationName: "SignalPath",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/signalpath-icon.svg" },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SignalPath",
+  },
+  formatDetection: { telephone: false },
+  icons: {
+    icon: [
+      { url: "/signalpath-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/signalpath-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -38,7 +51,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       lang="en"
       suppressHydrationWarning
     >
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <PwaLifecycle />
+        {children}
+      </body>
     </html>
   );
 }

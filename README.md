@@ -191,6 +191,24 @@ cd apps/web && npm install && cd ../..
 
 *(Alternatively, run `make native-install`, `make native-migrate`, and `make native-reset-demo` if `make` is installed).*
 
+### Install on an iPhone without Xcode
+
+SignalPath is an installable Progressive Web App. Start the API and web application normally,
+then expose the web port over HTTPS:
+
+```bash
+brew install ngrok                  # once, if ngrok is not installed
+ngrok config add-authtoken TOKEN    # once; never commit the token
+./scripts/ios_pwa_ngrok.sh
+```
+
+The script starts the local API and web app when they are not already running, waits for them,
+and then opens the tunnel. Open the displayed `https://...ngrok.app` address in iPhone Safari and choose
+**Share → Add to Home Screen**. Use a reserved ngrok domain for a durable installed URL.
+The tunnel exposes a development service to the internet, so keep authentication enabled and
+stop ngrok after testing. This installs the responsive web application; it does not create an
+App Store/TestFlight binary.
+
 ---
 
 ### Step 3: Run the Services
