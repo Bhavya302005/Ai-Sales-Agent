@@ -137,32 +137,42 @@ def create_account(
     user_id = uuid4()
     organization_id = uuid4()
     workspace_id = uuid4()
-    session.add_all(
-        [
-            UserAccount(id=user_id, email=email, password_hash=hash_password(password)),
-            Organization(id=organization_id, name="My Organization"),
-            Workspace(
-                id=workspace_id,
-                organization_id=organization_id,
-                name="My Sales Workspace",
-                locale="en-IN",
-                timezone="Asia/Kolkata",
-            ),
-            Membership(
-                organization_id=organization_id,
-                user_id=user_id,
-                role="owner",
-                status="active",
-            ),
+    try:
+        # These mappers intentionally have no ORM relationships, so explicitly
+        # flush each foreign-key layer in dependency order for PostgreSQL.
+        session.add_all(
+            [
+                UserAccount(id=user_id, email=email, password_hash=hash_password(password)),
+                Organization(id=organization_id, name="My Organization"),
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                Workspace(
+                    id=workspace_id,
+                    organization_id=organization_id,
+                    name="My Sales Workspace",
+                    locale="en-IN",
+                    timezone="Asia/Kolkata",
+                ),
+                Membership(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    role="owner",
+                    status="active",
+                ),
+            ]
+        )
+        session.flush()
+        session.add(
             Product(
                 organization_id=organization_id,
                 workspace_id=workspace_id,
                 name="Your business",
                 active_version_id=None,
-            ),
-        ]
-    )
-    try:
+            )
+        )
         session.commit()
     except IntegrityError as exc:
         session.rollback()

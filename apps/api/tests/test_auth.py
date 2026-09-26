@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -51,6 +51,8 @@ def _test_dependencies() -> tuple[Settings, Session]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    with engine.begin() as connection:
+        connection.execute(text("PRAGMA foreign_keys=ON"))
     Base.metadata.create_all(
         engine,
         tables=[
