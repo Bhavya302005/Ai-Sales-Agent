@@ -16,7 +16,14 @@ from app.discovery.ingestion import ingest_source
 from app.discovery.phone_enricher import enrich_contact
 from app.discovery.service import DiscoveryItem, discover_with_exa, load_demo_snapshot
 from app.jobs.service import enqueue_once, process_event
-from app.persistence.models import AuditLog, Product, ProductVersion, SourceDocument
+from app.persistence.models import (
+    AuditLog,
+    Lead,
+    Product,
+    ProductVersion,
+    Requirement,
+    SourceDocument,
+)
 
 router = APIRouter(prefix="/api/v1/discovery", tags=["discovery"])
 
@@ -107,7 +114,6 @@ def _active_product_version(session: Session, organization_id: UUID) -> ProductV
     return version
 
 
-
 def _spawn_phone_enrichment(item: DiscoveryItem, document_id: UUID) -> None:
     """Kick off background phone/email enrichment in a daemon thread.
 
@@ -120,6 +126,7 @@ def _spawn_phone_enrichment(item: DiscoveryItem, document_id: UUID) -> None:
             contact_data = enrich_contact(item)
             # Write-back: open a fresh session, merge into provider_metadata
             from sqlalchemy.orm import Session as _Session  # local import avoids cycles
+
             engine = get_engine()
             with _Session(engine) as sess:
                 doc = sess.get(SourceDocument, document_id)
@@ -143,6 +150,7 @@ def _ingest_and_extract(
     items: list[DiscoveryItem],
     provider: str,
 ) -> DiscoveryImportResponse:
+    active_version = _active_product_version(session, auth.organization_id)
     documents: list[SourceDocument] = []
     created = 0
     for item in items:
@@ -150,30 +158,54 @@ def _ingest_and_extract(
         documents.append(ingestion.document)
         if ingestion.created:
             created += 1
-        if ingestion.created or ingestion.document.extraction_status != "completed":
+        active_lead_exists = session.scalar(
+            select(Lead.id)
+            .join(Requirement, Requirement.id == Lead.requirement_id)
+            .where(
+                Lead.organization_id == auth.organization_id,
+                Lead.product_version_id == active_version.id,
+                Requirement.organization_id == auth.organization_id,
+                Requirement.source_document_id == ingestion.document.id,
+            )
+            .limit(1)
+        )
+        needs_active_profile_scoring = (
+            ingestion.document.extraction_status in {"completed", "not_actionable"}
+            and active_lead_exists is None
+        )
+        should_process = (
+            ingestion.created
+            or ingestion.document.extraction_status not in {"completed", "not_actionable"}
+            or needs_active_profile_scoring
+        )
+        if should_process:
             queued = enqueue_once(
                 session,
                 organization_id=auth.organization_id,
                 actor_id=auth.user_id,
-                route=f"discovery:{provider}:{ingestion.document.id}",
-                idempotency_key=f"discover-{ingestion.document.id}",
+                route=f"discovery:{provider}:{ingestion.document.id}:{active_version.id}",
+                idempotency_key=(f"discover-{ingestion.document.id}-profile-{active_version.id}"),
                 event_type="lead.extraction_requested.v1",
                 aggregate_type="source",
                 aggregate_id=ingestion.document.id,
                 payload_ref=f"source:{ingestion.document.id}",
             )
             ingestion.document.extraction_status = "queued"
-            session.add(
-                AuditLog(
-                    organization_id=auth.organization_id,
-                    actor_id=auth.user_id,
-                    action="discovery_result_imported",
-                    target_type="source_document",
-                    target_id=ingestion.document.id,
-                    reason=f"provider={provider}; job={queued.event.event_id}",
-                    request_id=request.state.request_id,
+            if queued.created:
+                session.add(
+                    AuditLog(
+                        organization_id=auth.organization_id,
+                        actor_id=auth.user_id,
+                        action="discovery_result_imported",
+                        target_type="source_document",
+                        target_id=ingestion.document.id,
+                        reason=(
+                            f"provider={provider}; profile={active_version.id}; "
+                            f"job={queued.event.event_id}"
+                        ),
+                        request_id=request.state.request_id,
+                    )
                 )
-            )
             session.flush()
             process_event(session, queued.event.event_id)
 
@@ -182,7 +214,7 @@ def _ingest_and_extract(
     if provider != "saved_snapshot":
         docs_to_enrich = [
             (idx, item, dict(doc.provider_metadata or {}))
-            for idx, (item, doc) in enumerate(zip(items, documents))
+            for idx, (item, doc) in enumerate(zip(items, documents, strict=True))
             if not (doc.provider_metadata or {}).get("best_phone")
             and not (doc.provider_metadata or {}).get("enriched")
         ]
@@ -190,7 +222,9 @@ def _ingest_and_extract(
         sync_candidates = docs_to_enrich[:6]
         async_candidates = docs_to_enrich[6:]
 
-        def _enrich_one(trip: tuple[int, DiscoveryItem, dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+        def _enrich_one(
+            trip: tuple[int, DiscoveryItem, dict[str, Any]],
+        ) -> tuple[int, dict[str, Any]]:
             idx, itm, meta = trip
             try:
                 contact_data = enrich_contact(itm)

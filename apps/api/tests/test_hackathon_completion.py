@@ -1,6 +1,6 @@
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from database.seeds.demo import seed_demo
@@ -13,7 +13,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.demo_ids import LEAD_ID, ORGANIZATION_ID, USER_ID
 from app.main import app
-from app.persistence.models import Base, Lead, Requirement, SourceDocument
+from app.persistence.models import Base, Lead, Product, ProductVersion, Requirement, SourceDocument
 
 
 @contextmanager
@@ -99,6 +99,60 @@ def test_discovery_filters_and_live_failure_keep_snapshot(tmp_path: Path) -> Non
     assert signals.status_code == 200
     assert len(signals.json()) == 4
     assert total == 9  # Seed evidence plus eight canonical discovery records.
+
+
+def test_profile_update_preserves_old_leads_and_rescores_duplicate_sources(
+    tmp_path: Path,
+) -> None:
+    with _client(tmp_path / "profile-update-leads.db") as (client, settings, session):
+        first = client.post("/api/v1/discovery/import-demo", headers=_headers(settings))
+        assert first.status_code == 200
+        old_leads = session.scalars(select(Lead)).all()
+        old_ids = {lead.id for lead in old_leads}
+        old_version_ids = {lead.product_version_id for lead in old_leads}
+
+        product = session.scalar(select(Product).where(Product.active_version_id.is_not(None)))
+        assert product is not None and product.active_version_id is not None
+        previous = session.get(ProductVersion, product.active_version_id)
+        assert previous is not None
+        updated = ProductVersion(
+            organization_id=previous.organization_id,
+            product_id=previous.product_id,
+            version=previous.version + 1,
+            description=previous.description + " Updated profile evidence.",
+            icp=previous.icp,
+            exclusions=previous.exclusions,
+            facts=previous.facts,
+            pricing_policy=previous.pricing_policy,
+            approved_at=datetime.now(UTC),
+            approved_by=previous.approved_by,
+        )
+        session.add(updated)
+        session.flush()
+        product.active_version_id = updated.id
+        session.commit()
+
+        repeated = client.post("/api/v1/discovery/import-demo", headers=_headers(settings))
+        all_leads = session.scalars(select(Lead)).all()
+
+        assert repeated.status_code == 200
+        assert repeated.json()["created"] == 0
+        assert old_ids <= {lead.id for lead in all_leads}
+        assert old_version_ids <= {lead.product_version_id for lead in all_leads}
+        assert any(lead.product_version_id == updated.id for lead in all_leads)
+
+
+def test_live_refresh_returns_honest_empty_success(tmp_path: Path, monkeypatch) -> None:
+    with _client(tmp_path / "empty-live-refresh.db") as (client, settings, _session):
+        settings.exa_discovery_mode = "mcp"
+        monkeypatch.setattr("app.discovery.api.discover_with_exa", lambda *args, **kwargs: [])
+
+        response = client.post("/api/v1/discovery/refresh", headers=_headers(settings))
+
+    assert response.status_code == 200
+    assert response.json()["provider_status"] == "live"
+    assert response.json()["received"] == 0
+    assert response.json()["created"] == 0
 
 
 def test_calling_only_csv_import_is_bounded_and_never_returns_phone(tmp_path: Path) -> None:
