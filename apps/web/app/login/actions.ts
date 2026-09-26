@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 type DevSession = { access_token: string; token_type: "bearer" };
 
-async function establishSession(targetDestination = "/onboarding") {
+async function establishSession() {
   const apiBaseUrl = (
     process.env.API_BASE_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL ||
@@ -104,7 +104,7 @@ export async function signInWithCredentials(formData: FormData) {
   const destination = returnTo.startsWith("/") ? returnTo : "/onboarding";
   let success = false;
   try {
-    await establishSession(destination);
+    await establishSession();
     success = true;
   } catch (err: unknown) {
     if (
@@ -142,8 +142,10 @@ export async function signUpWithCredentials(formData: FormData) {
   }
 
   const destination = returnTo.startsWith("/") ? returnTo : "/onboarding";
+  let success = false;
   try {
-    await establishSession(destination);
+    await establishSession();
+    success = true;
   } catch (err: unknown) {
     if (
       err &&
@@ -153,7 +155,17 @@ export async function signUpWithCredentials(formData: FormData) {
     ) {
       throw err;
     }
-    return { error: "Registration service error. Please try again." };
+    console.error("[signUpWithCredentials] Registration error:", err);
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Registration service error. Please try again.",
+    };
+  }
+
+  if (success) {
+    redirect(destination);
   }
 }
 

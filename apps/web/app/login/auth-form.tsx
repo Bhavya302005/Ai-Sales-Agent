@@ -6,14 +6,21 @@ import { useState, useTransition } from "react";
 import { signInWithCredentials, signUpWithCredentials } from "./actions";
 
 interface AuthFormProps {
+  initialMode?: "signin" | "signup";
   returnTo?: string;
 }
 
-export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
+export function AuthForm({ initialMode = "signin", returnTo = "/onboarding" }: AuthFormProps) {
   const [showPassword, setShowPassword] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(initialMode === "signup");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function switchMode(signUp: boolean) {
+    setIsSignUp(signUp);
+    setShowPassword(false);
+    setError(null);
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,7 +29,9 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
     formData.set("returnTo", returnTo);
 
     startTransition(async () => {
-      const res = isSignUp ? await signUpWithCredentials(formData) : await signInWithCredentials(formData);
+      const res = isSignUp
+        ? await signUpWithCredentials(formData)
+        : await signInWithCredentials(formData);
       if (res?.error) {
         setError(res.error);
       }
@@ -47,13 +56,13 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
 
         <div className="auth-admin-badge">
           <span className="auth-badge-dot" />
-          Admin Access Only
+          {isSignUp ? "New Workspace" : "Admin Access Only"}
         </div>
 
         <h1 className="auth-heading">{isSignUp ? "Create Workspace" : "Administrator Sign In"}</h1>
         <p className="auth-subheading">
-          {isSignUp 
-            ? "Sign up to create your AI sales workspace and start managing leads." 
+          {isSignUp
+            ? "Create your AI sales workspace and set up your business profile."
             : "Sign in with your workspace administrator credentials to access your sales workspace, leads, and live campaigns."}
         </p>
       </div>
@@ -81,6 +90,7 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
             className="auth-input"
             defaultValue={isSignUp ? "" : "admin@signalpath.ai"}
             id="auth-email"
+            key={isSignUp ? "signup-email" : "signin-email"}
             name="email"
             placeholder={isSignUp ? "you@company.com" : "admin@signalpath.ai"}
             required
@@ -99,7 +109,7 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
           </div>
           <div className="auth-input-wrapper">
             <input
-              autoComplete="current-password"
+              autoComplete={isSignUp ? "new-password" : "current-password"}
               className="auth-input password-input"
               id="auth-password"
               name="password"
@@ -145,9 +155,9 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
       <footer className="auth-footer">
         <p className="auth-fineprint">
           {isSignUp ? (
-            <>Already have an account? <button type="button" onClick={() => { setIsSignUp(false); setError(null); }} style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>Sign in here</button></>
+            <>Already have an account? <button type="button" onClick={() => switchMode(false)} style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>Sign in here</button></>
           ) : (
-            <>Don't have an account? <button type="button" onClick={() => { setIsSignUp(true); setError(null); }} style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>Sign up here</button></>
+            <>Don&apos;t have an account? <button type="button" onClick={() => switchMode(true)} style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>Sign up here</button></>
           )}
         </p>
       </footer>

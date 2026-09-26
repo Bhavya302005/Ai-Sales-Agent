@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AuthForm } from "./auth-form";
-import { signInWithCredentials } from "./actions";
+import { signInWithCredentials, signUpWithCredentials } from "./actions";
 
 vi.mock("./actions", () => ({
   signInWithCredentials: vi.fn(),
@@ -25,12 +25,38 @@ describe("AuthForm (Admin Only)", () => {
     expect(screen.getByRole("button", { name: /^Sign In as Admin$/i })).toBeDefined();
   });
 
-  it("does not render account creation tabs or signup fields", () => {
+  it("switches to a clean signup form", () => {
     render(<AuthForm />);
 
-    expect(screen.queryByRole("tab", { name: /Create Account/i })).toBeNull();
-    expect(screen.queryByLabelText("Full Name")).toBeNull();
-    expect(screen.queryByLabelText("Company / Workspace")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Sign up here/i }));
+
+    expect(screen.getByRole("heading", { name: /Create Workspace/i })).toBeDefined();
+    expect(screen.getByText(/New Workspace/i)).toBeDefined();
+    expect(screen.getByLabelText("Email Address")).toHaveValue("");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "new-password");
+  });
+
+  it("can render directly in signup mode", () => {
+    render(<AuthForm initialMode="signup" />);
+
+    expect(screen.getByRole("heading", { name: /Create Workspace/i })).toBeDefined();
+    expect(screen.getByLabelText("Email Address")).toHaveValue("");
+    expect(screen.getByRole("button", { name: /^Sign Up$/i })).toBeDefined();
+  });
+
+  it("submits signup credentials to the signup action", () => {
+    render(<AuthForm returnTo="/onboarding" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Sign up here/i }));
+    fireEvent.change(screen.getByLabelText("Email Address"), {
+      target: { value: "new@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Sign Up$/i }));
+
+    expect(signUpWithCredentials).toHaveBeenCalledTimes(1);
   });
 
   it("submits the form and calls signInWithCredentials", () => {
