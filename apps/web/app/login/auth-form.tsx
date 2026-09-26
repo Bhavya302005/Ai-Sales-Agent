@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
-import { signInWithCredentials } from "./actions";
+import { signInWithCredentials, signUpWithCredentials } from "./actions";
 
 interface AuthFormProps {
   returnTo?: string;
@@ -11,6 +11,7 @@ interface AuthFormProps {
 
 export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -21,7 +22,7 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
     formData.set("returnTo", returnTo);
 
     startTransition(async () => {
-      const res = await signInWithCredentials(formData);
+      const res = isSignUp ? await signUpWithCredentials(formData) : await signInWithCredentials(formData);
       if (res?.error) {
         setError(res.error);
       }
@@ -49,9 +50,11 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
           Admin Access Only
         </div>
 
-        <h1 className="auth-heading">Administrator Sign In</h1>
+        <h1 className="auth-heading">{isSignUp ? "Create Workspace" : "Administrator Sign In"}</h1>
         <p className="auth-subheading">
-          Sign in with your workspace administrator credentials to access your sales workspace, leads, and live campaigns.
+          {isSignUp 
+            ? "Sign up to create your AI sales workspace and start managing leads." 
+            : "Sign in with your workspace administrator credentials to access your sales workspace, leads, and live campaigns."}
         </p>
       </div>
 
@@ -71,15 +74,15 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
 
         <div className="auth-field">
           <label className="auth-label" htmlFor="auth-email">
-            Admin Email
+            {isSignUp ? "Email Address" : "Admin Email"}
           </label>
           <input
             autoComplete="email"
             className="auth-input"
-            defaultValue="admin@signalpath.ai"
+            defaultValue={isSignUp ? "" : "admin@signalpath.ai"}
             id="auth-email"
             name="email"
-            placeholder="admin@signalpath.ai"
+            placeholder={isSignUp ? "you@company.com" : "admin@signalpath.ai"}
             required
             type="email"
           />
@@ -134,14 +137,18 @@ export function AuthForm({ returnTo = "/onboarding" }: AuthFormProps) {
           {isPending ? (
             <span className="auth-spinner" />
           ) : (
-            <span>Sign In as Admin</span>
+            <span>{isSignUp ? "Sign Up" : "Sign In as Admin"}</span>
           )}
         </button>
       </form>
 
       <footer className="auth-footer">
         <p className="auth-fineprint">
-          Public registration is disabled. Workspace access is restricted to authorized administrators.
+          {isSignUp ? (
+            <>Already have an account? <button type="button" onClick={() => { setIsSignUp(false); setError(null); }} style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>Sign in here</button></>
+          ) : (
+            <>Don't have an account? <button type="button" onClick={() => { setIsSignUp(true); setError(null); }} style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>Sign up here</button></>
+          )}
         </p>
       </footer>
     </div>

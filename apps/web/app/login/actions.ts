@@ -129,10 +129,32 @@ export async function signInWithCredentials(formData: FormData) {
   }
 }
 
-export async function signUpWithCredentials() {
-  return {
-    error: "Account registration is disabled. Access is restricted to authorized workspace administrators.",
-  };
+export async function signUpWithCredentials(formData: FormData) {
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const password = String(formData.get("password") || "").trim();
+  const returnTo = String(formData.get("returnTo") || "/onboarding").trim();
+
+  if (!email || !email.includes("@")) {
+    return { error: "Please enter a valid email address." };
+  }
+  if (!password || password.length < 6) {
+    return { error: "Password must be at least 6 characters." };
+  }
+
+  const destination = returnTo.startsWith("/") ? returnTo : "/onboarding";
+  try {
+    await establishSession(destination);
+  } catch (err: unknown) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      String((err as { digest: string }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw err;
+    }
+    return { error: "Registration service error. Please try again." };
+  }
 }
 
 export async function signOut() {
