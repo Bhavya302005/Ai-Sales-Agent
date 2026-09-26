@@ -145,6 +145,14 @@ def test_signup_creates_an_isolated_empty_workspace_and_login_reuses_it() -> Non
         signup_headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
         me = client.get("/api/v1/me", headers=signup_headers)
         workspace = client.get("/api/v1/workspaces/current", headers=signup_headers)
+        retried_signup = client.post(
+            "/api/v1/auth/signup",
+            json={"email": "new-owner@example.com", "password": "safe-password-123"},
+        )
+        retry_me = client.get(
+            "/api/v1/me",
+            headers={"Authorization": f"Bearer {retried_signup.json()['access_token']}"},
+        )
 
         login = client.post(
             "/api/v1/auth/login",
@@ -160,6 +168,8 @@ def test_signup_creates_an_isolated_empty_workspace_and_login_reuses_it() -> Non
     assert me.json()["organization_id"] != str(ORGANIZATION_ID)
     assert workspace.status_code == 200
     assert workspace.json()["name"] == "My Sales Workspace"
+    assert retried_signup.status_code == 201
+    assert retry_me.json() == me.json()
     assert login.status_code == 200
     assert login_me.json() == me.json()
 

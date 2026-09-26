@@ -118,7 +118,20 @@ def create_account(
 ) -> DevSessionResponse:
     email, password = _normalized_credentials(payload)
     _limit_auth_request(request, session, "account-signup")
-    if session.scalar(select(UserAccount.id).where(UserAccount.email == email)) is not None:
+    existing_account = session.scalar(select(UserAccount).where(UserAccount.email == email))
+    if existing_account is not None:
+        existing_membership = session.scalar(
+            select(Membership).where(
+                Membership.user_id == existing_account.id,
+                Membership.status == "active",
+            )
+        )
+        if (
+            existing_membership is not None
+            and verify_password(password, existing_account.password_hash)
+        ):
+            session.commit()
+            return _token(existing_account.id, existing_membership.organization_id, settings)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Account already exists")
 
     user_id = uuid4()

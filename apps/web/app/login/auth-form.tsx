@@ -104,7 +104,7 @@ export function AuthForm({ initialMode = "signin", returnTo = "/onboarding" }: A
               Password
             </label>
             <span className="auth-forgot-link">
-              Admin CLI reset
+              {isSignUp ? "8+ characters" : "Account password"}
             </span>
           </div>
           <div className="auth-input-wrapper">

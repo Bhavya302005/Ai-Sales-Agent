@@ -5,6 +5,15 @@ import { redirect } from "next/navigation";
 
 type DevSession = { access_token: string; token_type: "bearer" };
 
+class AuthenticationServiceError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(detail);
+  }
+}
+
 async function establishSession(
   endpoint: "/api/v1/auth/dev-session" | "/api/v1/auth/login" | "/api/v1/auth/signup",
   credentials?: { email: string; password: string },
@@ -16,7 +25,9 @@ async function establishSession(
   ).replace(/\/+$/, "");
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  // Render's free instances can take 50+ seconds to wake. Keep this longer than
+  // the documented cold-start delay so a completed signup response is not lost.
+  const timeoutId = setTimeout(() => controller.abort(), 70000);
   
   let response: Response;
   try {
@@ -46,8 +57,9 @@ async function establishSession(
       detail = await response.text().catch(() => "");
     }
     console.error(`[auth] Authentication API responded with HTTP ${response.status}:`, detail);
-    throw new Error(
-      `Authentication service error (HTTP ${response.status}${detail ? `: ${detail}` : ""}).`
+    throw new AuthenticationServiceError(
+      response.status,
+      detail || "Authentication request failed.",
     );
   }
 
@@ -120,9 +132,11 @@ export async function signInWithCredentials(formData: FormData) {
     console.error("[signInWithCredentials] Authentication error:", err);
     return {
       error:
-        err instanceof Error
-          ? err.message
-          : "Authentication service error. Please try again.",
+        err instanceof AuthenticationServiceError && err.status === 401
+          ? "Invalid email or password. Use the password from your first signup attempt."
+          : err instanceof Error
+            ? err.message
+            : "Authentication service error. Please try again.",
     };
   }
 
@@ -160,9 +174,11 @@ export async function signUpWithCredentials(formData: FormData) {
     console.error("[signUpWithCredentials] Registration error:", err);
     return {
       error:
-        err instanceof Error
-          ? err.message
-          : "Registration service error. Please try again.",
+        err instanceof AuthenticationServiceError && err.status === 409
+          ? "This email already has an account. Retry with the password from your first signup, or sign in."
+          : err instanceof Error
+            ? err.message
+            : "Registration service error. Please try again.",
     };
   }
 
