@@ -19,7 +19,7 @@ from app.discovery.connectors import ManualHTTPConnector, SourcePolicyError, vis
 MAX_FILE_BYTES = 2_000_000
 MAX_TOTAL_BYTES = 5_000_000
 MAX_FILES = 5
-MAX_SOURCE_CHARACTERS = 30_000
+MAX_SOURCE_CHARACTERS = 60_000
 
 
 class BusinessProfileError(ValueError):
@@ -32,7 +32,7 @@ class ProfileSource(BaseModel):
     label: str = Field(min_length=1, max_length=200)
     kind: Literal["website", "document", "user_input"]
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
-    excerpt: str = Field(min_length=1, max_length=3000)
+    excerpt: str = Field(min_length=1, max_length=20000)
 
 
 class ProfileSuggestion(BaseModel):
@@ -108,7 +108,7 @@ def extract_uploaded_document(filename: str, content_type: str, content: bytes) 
         raise
     except Exception as exc:
         raise BusinessProfileError(f"{filename} could not be read safely") from exc
-    cleaned = _clean_text(text, 12_000)
+    cleaned = _clean_text(text, 30_000)
     if len(cleaned) < 20:
         raise BusinessProfileError(f"{filename} contains too little readable text")
     return cleaned
@@ -150,7 +150,7 @@ def make_source(
         label=label[:200],
         kind=kind,
         content_hash=sha256(encoded).hexdigest(),
-        excerpt=_clean_text(text, 3000),
+        excerpt=_clean_text(text, 16000),
     )
 
 

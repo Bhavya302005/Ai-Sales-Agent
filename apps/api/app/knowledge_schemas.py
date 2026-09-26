@@ -89,7 +89,7 @@ class BusinessProfileSource(BaseModel):
     label: str = Field(min_length=1, max_length=200)
     kind: Literal["website", "document", "user_input"]
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
-    excerpt: str = Field(min_length=1, max_length=600)
+    excerpt: str = Field(min_length=1, max_length=16000)
 
 
 class BusinessProfileAnalysisResponse(BaseModel):
