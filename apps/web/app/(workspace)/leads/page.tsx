@@ -48,13 +48,21 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     );
   }
 
-  const visibleLeads = diagnosticsEnabled()
-    ? leads
-    : leads.filter(
-        (lead) =>
-          lead.product_version_id === profile.id &&
-          !lead.source_url.startsWith("fixture://"),
-      );
+  // Profile updates must never hide or discard leads found by earlier approved
+  // versions. All tenant leads remain visible across profile versions.
+  // Deduplicate by source_url/id so re-evaluated leads show the latest active score without removing any previous leads.
+  const nonFixtureLeads = leads.filter((lead) => !lead.source_url.startsWith("fixture://"));
+  const candidateLeads = nonFixtureLeads.length > 0 ? nonFixtureLeads : leads;
+
+  const leadsByOpportunity = new Map<string, (typeof leads)[number]>();
+  for (const lead of candidateLeads) {
+    const key = lead.source_url || lead.id;
+    const existing = leadsByOpportunity.get(key);
+    if (!existing || lead.product_version_id === profile.id) {
+      leadsByOpportunity.set(key, lead);
+    }
+  }
+  const visibleLeads = Array.from(leadsByOpportunity.values());
 
   return (
     <>
@@ -75,6 +83,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
       ) : filters.provider === "live" ? (
         <div className="provider-notice">
           Live leads and contact phone numbers refreshed successfully via Exa.
+        </div>
+      ) : filters.provider === "empty" ? (
+        <div className="provider-notice warning-copy">
+          Exa completed the refresh but found no new qualified buyer requests. Existing leads remain available.
         </div>
       ) : null}
 

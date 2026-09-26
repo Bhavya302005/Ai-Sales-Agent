@@ -381,6 +381,35 @@ def confirm_profile(
             request_id=request.state.request_id,
         )
     )
+    # Ensure existing leads are preserved and rescored under the new active business profile
+    try:
+        from app.persistence.models import Requirement, SourceDocument, Lead
+        from app.scoring.service import ensure_opportunity_and_score
+
+        requirements = session.scalars(
+            select(Requirement).where(Requirement.organization_id == auth.organization_id)
+        ).all()
+        for req in requirements:
+            source = session.get(SourceDocument, req.source_document_id)
+            if source is not None:
+                existing_lead = session.scalar(
+                    select(Lead).where(
+                        Lead.organization_id == auth.organization_id,
+                        Lead.requirement_id == req.id,
+                    ).order_by(Lead.created_at.desc()).limit(1)
+                )
+                ensure_opportunity_and_score(
+                    session,
+                    organization_id=auth.organization_id,
+                    workspace_id=product.workspace_id,
+                    requirement=req,
+                    source=source,
+                    company_id=existing_lead.company_id if existing_lead else None,
+                )
+    except Exception as exc:
+        import logging
+        logging.warning("Failed to rescore existing leads under new profile: %s", exc)
+
     session.commit()
     session.refresh(version)
     return _version_response(version, product.active_version_id)
