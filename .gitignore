@@ -41,6 +41,8 @@ job_scraper/*.json
 # Local demo/test lead files with contact numbers
 demo_leads.csv
 test_lead.csv
+receivable_lead.csv
+jugal.csv
 cookies.txt
 .vercel
 .env*

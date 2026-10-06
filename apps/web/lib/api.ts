@@ -552,8 +552,26 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
   if (response.status === 401 || response.status === 403) redirect("/login");
   if (!response.ok) {
-    const problem = (await response.json().catch(() => ({}))) as ApiProblem;
-    throw new Error(problem.detail ?? `API request failed (${response.status})`);
+    const problem = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    let errorMessage = `API request failed (${response.status})`;
+    if (typeof problem?.detail === "string") {
+      errorMessage = problem.detail;
+    } else if (Array.isArray(problem?.detail)) {
+      errorMessage = problem.detail
+        .map((err: unknown) => {
+          if (typeof err === "object" && err !== null && "msg" in err && "loc" in err) {
+            const loc = Array.isArray((err as { loc: unknown[] }).loc)
+              ? (err as { loc: unknown[] }).loc.join(".")
+              : "";
+            return `${loc}: ${(err as { msg: unknown }).msg}`;
+          }
+          return JSON.stringify(err);
+        })
+        .join("; ");
+    } else if (problem?.detail) {
+      errorMessage = JSON.stringify(problem.detail);
+    }
+    throw new Error(errorMessage);
   }
   if (response.status === 204) return undefined as T;
   const text = await response.text();

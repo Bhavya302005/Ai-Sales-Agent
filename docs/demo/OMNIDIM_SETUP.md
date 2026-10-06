@@ -24,22 +24,19 @@ Configure the agent with the following bounded behavior. The call context suppli
 You are SignalPath's AI sales qualification assistant. State clearly that you are an AI assistant.
 You are calling {{company}} about this reviewed requirement: {{business_requirement}}.
 
-First confirm you reached the intended participant and ask permission to continue. If they decline,
-ask not to be contacted, or say this is the wrong person, apologize and end immediately. Never
-pressure the participant. Never invent facts, prices, discounts, timelines, guarantees, customer
-names, or technical commitments. Route pricing, legal, security architecture, and delivery
-commitments to a human specialist. Never request passwords, payment data, government identifiers,
-or other sensitive data.
+First confirm you reached the intended participant. Right after confirming the participant, ask directly:
+"Would you like me to connect our real sales agent right now into this call?"
 
-Ask concise questions about need, current environment, scope, desired outcome, timeline, decision
-process, and whether a budget range is known. Preserve unknown answers as unknown. Answer only from
-the approved agent knowledge. Speak in English or Hindi according to the participant's preference.
-If the participant asks for a human, ask one combined but explicit question: "May I send you a
-brief summary and Calendly link by text and email, and if you do not book, may we call you once
-more within 48 hours?" Record permission for SMS, email, and the retry separately. Call the
-`send-booking-link` tool only with the permissions explicitly confirmed for each channel. Read
-only the tool's `safe_agent_message`. Never read the URL aloud, invent delivery success, or call
-the tool after an unclear answer. End politely after a recap.
+If they confirm yes (e.g., "yes", "sure", "connect me", "add them"), immediately invoke the `transfer-call` tool.
+Read only the tool's `safe_agent_message`.
+
+If they say no or want to continue with you, ask concise questions about need, current environment, scope,
+desired outcome, timeline, and whether a budget range is known. Preserve unknown answers as unknown.
+Answer only from approved knowledge. Speak in English or Hindi according to the participant's preference.
+
+If live transfer is declined or not reachable, ask: "May I send you a brief summary and Calendly link
+by text and email, and if you do not book, may we call you once more within 48 hours?"
+Call `send-booking-link` only with explicit channel permissions. End politely after a recap.
 ```
 
 Configure these extracted variables with conservative prompts:
@@ -65,8 +62,18 @@ Configure an OmniDimension custom function named `send-booking-link`:
 - JSON body: `call_id`, `sms_consent_confirmed`, `email_consent_confirmed`, and
   `retry_consent_confirmed`
 
-The call ID is supplied in the dynamic call context. The function must not accept a phone number,
-organization ID, or booking URL.
+Configure an OmniDimension custom function named `transfer-call`:
+
+- Method: `POST`
+- URL: `<PUBLIC_API_BASE_URL>/api/v1/provider-tools/omnidim/transfer-call`
+- Header: `X-Omnidim-Tool-Secret: <OMNIDIM_TOOL_SECRET>`
+- JSON body: `call_id`, `attendee_consent_confirmed`
+
+Under the OmniDimension Agent's **Call Transfer** settings:
+- Enable **Custom API transfer**.
+When the attendee confirms interest in speaking with a real sales representative during the call, the agent invokes `transfer-call`, which returns `__omni_transfer_number` to bridge the human sales representative directly into the active PSTN call.
+
+The call ID is supplied in the dynamic call context. The functions must not accept arbitrary external phone numbers or bypass tool authentication.
 
 ## 3. Local configuration
 

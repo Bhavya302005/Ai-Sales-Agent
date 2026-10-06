@@ -5,7 +5,7 @@ import { getCallDetail } from "@/lib/api";
 import { AudioPlayer } from "./audio-player";
 import { BrowserCallSession } from "./browser-call-session";
 import { callFailureMessage } from "./call-status";
-import { refreshProviderCall, syncHandoffToCrm } from "./actions";
+import { refreshProviderCall, syncHandoffToCrm, sendBookingFollowupAction } from "./actions";
 import { CallStatusPoller } from "@/app/(workspace)/campaigns/call-status-poller";
 import { CopyLinkButton } from "@/app/ui/copy-link-button";
 
@@ -75,6 +75,12 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
                       ? "OmniDimension calls do not stream transcripts live. Complete the phone call, then use 'Refresh transcript now' to fetch the final log."
                       : "Call in progress with recipient. Conversation turns will appear here live as speech is exchanged."}
                   </p>
+                  {call.transport === "omnidim" && !isCallActive ? (
+                    <form action={refreshProviderCall} style={{ marginTop: "16px" }}>
+                      <input name="call_id" type="hidden" value={call.id} />
+                      <button className="secondary-button" type="submit">Refresh transcript now</button>
+                    </form>
+                  ) : null}
                 </article>
               )}
             </div>
@@ -156,17 +162,23 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
                 </div>
               ) : <p className="panel-copy">No handoff was required for this outcome.</p>}
             </section>
-            {call.booking_followup ? (
-              <section className="detail-panel handoff-panel">
-                <p className="kicker">Calendly handoff</p>
-                <h2>Booking follow-up</h2>
+            <section className="detail-panel handoff-panel">
+              <p className="kicker">Booking & Follow-up</p>
+              <h2>Booking follow-up</h2>
+              {call.booking_followup ? (
                 <div className="handoff-copy">
-                  <strong>{call.booking_followup.status.replaceAll("_", " ")}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <span className="badge badge-success">✓ DELIVERED</span>
+                    <strong>{call.booking_followup.status === "awaiting_booking" ? "Awaiting Prospect Booking" : call.booking_followup.status.replaceAll("_", " ")}</strong>
+                  </div>
                   <p>
-                    SMS: {call.booking_followup.delivery_mode} · {call.booking_followup.delivery_status}
+                    Delivery channels: SMS ({call.booking_followup.delivery_mode}) & Email (SMTP) · Status: {call.booking_followup.delivery_status}
                   </p>
                   {call.booking_followup.delivery_status === "simulated" ? (
-                    <small>Demo mode: the booking link was prepared, but no SMS was sent.</small>
+                    <small>Demo mode: the booking link was prepared, but no live SMS was sent.</small>
+                  ) : null}
+                  {call.booking_followup.link_sent_at ? (
+                    <small>Dispatched at: {new Date(call.booking_followup.link_sent_at).toLocaleString("en-IN")}</small>
                   ) : null}
                   {call.booking_followup.scheduled_start_at ? (
                     <small>Booked for {new Date(call.booking_followup.scheduled_start_at).toLocaleString("en-IN")}</small>
@@ -174,20 +186,32 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
                     <small>Booking check {new Date(call.booking_followup.booking_check_at).toLocaleString("en-IN")}</small>
                   ) : null}
                   {call.booking_followup.calendly_link ? (
-                    <div className="operation-actions">
+                    <div className="operation-actions" style={{ marginTop: "12px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
                       <CopyLinkButton value={call.booking_followup.calendly_link} />
-                      <a className="text-button" href={call.booking_followup.calendly_link} rel="noreferrer" target="_blank">Open Calendly</a>
+                      <a className="text-button" href={call.booking_followup.calendly_link} rel="noreferrer" target="_blank">Open Calendly →</a>
                     </div>
                   ) : null}
                   {call.booking_followup.retry_call_id ? (
                     <Link className="text-button" href={`/calls/${call.booking_followup.retry_call_id}`}>View reminder call →</Link>
                   ) : null}
-                  {call.booking_followup.last_error_code ? (
-                    <small>Action required: {call.booking_followup.last_error_code.replaceAll("_", " ")}</small>
+                  {call.booking_followup.delivery_status !== "sent" && call.booking_followup.last_error_code ? (
+                    <small style={{ color: "#ef4444" }}>Action required: {call.booking_followup.last_error_code.replaceAll("_", " ")}</small>
                   ) : null}
+                  <form action={sendBookingFollowupAction} style={{ marginTop: "16px" }}>
+                    <input name="call_id" type="hidden" value={call.id} />
+                    <button className="secondary-button" type="submit">Resend Follow-up (SMS & Email)</button>
+                  </form>
                 </div>
-              </section>
-            ) : null}
+              ) : (
+                <div className="handoff-copy">
+                  <p className="panel-copy">Send the prospect a Calendly booking link and recap via SMS and Email.</p>
+                  <form action={sendBookingFollowupAction} style={{ marginTop: "12px" }}>
+                    <input name="call_id" type="hidden" value={call.id} />
+                    <button className="primary-button" type="submit">Send Follow-up Message & Email Now</button>
+                  </form>
+                </div>
+              )}
+            </section>
           </div>
         </div>
       ) : (

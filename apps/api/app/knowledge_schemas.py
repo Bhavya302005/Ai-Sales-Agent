@@ -8,9 +8,9 @@ from app.business_profile import ProfileSource
 
 
 class ICPDefinition(BaseModel):
-    geographies: list[str] = Field(min_length=1, max_length=20)
-    industries: list[str] = Field(min_length=1, max_length=30)
-    needs: list[str] = Field(min_length=1, max_length=30)
+    geographies: list[str] = Field(min_length=1, max_length=100)
+    industries: list[str] = Field(min_length=1, max_length=100)
+    needs: list[str] = Field(min_length=1, max_length=100)
 
     @field_validator("geographies", "industries", "needs")
     @classmethod
@@ -22,13 +22,13 @@ class ICPDefinition(BaseModel):
 
 
 class OfferingVersionCreate(BaseModel):
-    description: str = Field(min_length=20, max_length=4000)
+    description: str = Field(min_length=20, max_length=15000)
     icp: ICPDefinition
-    exclusions: list[str] = Field(min_length=1, max_length=30)
-    facts: dict[str, str] = Field(min_length=1, max_length=50)
-    pricing_policy: str = Field(min_length=10, max_length=2000)
-    qualification_questions: list[str] = Field(min_length=1, max_length=20)
-    handoff_conditions: list[str] = Field(min_length=1, max_length=20)
+    exclusions: list[str] = Field(min_length=1, max_length=100)
+    facts: dict[str, str] = Field(min_length=1, max_length=200)
+    pricing_policy: str = Field(min_length=10, max_length=8000)
+    qualification_questions: list[str] = Field(min_length=1, max_length=100)
+    handoff_conditions: list[str] = Field(min_length=1, max_length=100)
 
     @field_validator("exclusions", "qualification_questions", "handoff_conditions")
     @classmethod
@@ -112,15 +112,15 @@ class BusinessProfileAnalysisResponse(BaseModel):
 
 class BusinessProfileConfirm(BaseModel):
     company_name: str = Field(min_length=2, max_length=200)
-    description: str = Field(min_length=20, max_length=4000)
-    services: list[str] = Field(min_length=1, max_length=20)
+    description: str = Field(min_length=20, max_length=15000)
+    services: list[str] = Field(min_length=1, max_length=100)
     icp: ICPDefinition
-    target_customers: list[str] = Field(min_length=1, max_length=20)
-    facts: dict[str, str] = Field(min_length=1, max_length=50)
-    exclusions: list[str] = Field(min_length=1, max_length=30)
-    pricing_policy: str = Field(min_length=10, max_length=2000)
-    qualification_questions: list[str] = Field(min_length=1, max_length=20)
-    handoff_conditions: list[str] = Field(min_length=1, max_length=20)
+    target_customers: list[str] = Field(min_length=1, max_length=100)
+    facts: dict[str, str] = Field(min_length=1, max_length=200)
+    exclusions: list[str] = Field(min_length=1, max_length=100)
+    pricing_policy: str = Field(min_length=10, max_length=8000)
+    qualification_questions: list[str] = Field(min_length=1, max_length=100)
+    handoff_conditions: list[str] = Field(min_length=1, max_length=100)
     analysis_token: str = Field(min_length=20, max_length=20_000)
     workflow_mode: Literal["leads_and_calling", "calling_only"]
     confirmed: Literal[True]

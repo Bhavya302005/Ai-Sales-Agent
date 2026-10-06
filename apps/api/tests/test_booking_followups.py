@@ -32,6 +32,7 @@ from app.db import get_session
 from app.demo_ids import CAMPAIGN_ID, CONTACT_ID, LEAD_ID, ORGANIZATION_ID
 from app.main import app
 from app.persistence.models import (
+    AuditLog,
     Base,
     BookingFollowup,
     Call,
@@ -591,3 +592,83 @@ def test_textbee_sms_sender(monkeypatch) -> None:
     assert res.provider == "textbee"
     assert res.provider_message_id == "msg-999"
     assert res.simulated is False
+
+
+def test_omnidim_transfer_tool(tmp_path: Path) -> None:
+    with _client(tmp_path / "transfer.db") as (client, settings, session, call):
+        path = "/api/v1/provider-tools/omnidim/transfer-call"
+        settings.human_sales_rep_phone = None
+        # 1. Secret validation
+        unauthorized = client.post(
+            path,
+            json={"call_id": str(call.id), "attendee_consent_confirmed": True},
+        )
+        assert unauthorized.status_code == 401
+
+        # 2. Missing call
+        not_found = client.post(
+            path,
+            headers={"X-Omnidim-Tool-Secret": "provider-tool-secret"},
+            json={"call_id": str(uuid4()), "attendee_consent_confirmed": True},
+        )
+        assert not_found.status_code == 404
+
+        # 3. Attendee declined
+        declined = client.post(
+            path,
+            headers={"X-Omnidim-Tool-Secret": "provider-tool-secret"},
+            json={"call_id": str(call.id), "attendee_consent_confirmed": False},
+        )
+        assert declined.status_code == 200
+        assert declined.json()["status"] == "declined"
+        assert declined.json().get("__omni_transfer_number") is None
+
+        # 4. Unavailable when no sales rep phone configured
+        unavailable = client.post(
+            path,
+            headers={"X-Omnidim-Tool-Secret": "provider-tool-secret"},
+            json={"call_id": str(call.id), "attendee_consent_confirmed": True},
+        )
+        assert unavailable.status_code == 200
+        assert unavailable.json()["status"] == "unavailable"
+        assert unavailable.json().get("__omni_transfer_number") is None
+
+        # 5. Successful transfer when phone is configured
+        settings.human_sales_rep_phone = SecretStr("+919999999999")
+        success = client.post(
+            path,
+            headers={"X-Omnidim-Tool-Secret": "provider-tool-secret"},
+            json={
+                "call_id": str(call.id),
+                "attendee_consent_confirmed": True,
+                "reason": "Attendee requested human sales rep",
+            },
+        )
+        assert success.status_code == 200
+        data = success.json()
+        assert data["status"] == "transferring"
+        assert data["__omni_transfer_number"] == "+919999999999"
+        assert "connect" in data["__omni_transfer_message"].lower()
+
+        # Check DB side effects: HandoffTask, Call state, and AuditLog
+        handoff = session.scalar(
+            select(HandoffTask).where(
+                HandoffTask.call_id == call.id,
+                HandoffTask.organization_id == call.organization_id,
+            )
+        )
+        assert handoff is not None
+        assert handoff.state == "in_progress"
+        assert handoff.priority == "high"
+
+        session.refresh(call)
+        assert call.outcome == "live_transfer_initiated"
+        assert call.usage.get("transfer_status") == "initiated"
+
+        log = session.scalar(
+            select(AuditLog).where(
+                AuditLog.action == "live_call_transfer_requested",
+                AuditLog.target_id == call.id,
+            )
+        )
+        assert log is not None

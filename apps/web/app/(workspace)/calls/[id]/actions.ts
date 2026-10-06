@@ -24,3 +24,22 @@ export async function refreshProviderCall(formData: FormData) {
   revalidatePath(`/calls/${callId}`);
   revalidatePath("/campaigns");
 }
+
+export async function sendBookingFollowupAction(formData: FormData) {
+  const callId = String(formData.get("call_id") ?? "");
+  const recipientEmail = String(formData.get("recipient_email") ?? "").trim() || undefined;
+  const recipientPhone = String(formData.get("recipient_phone") ?? "").trim() || undefined;
+  if (!/^[0-9a-f-]{36}$/i.test(callId)) throw new Error("Invalid call ID");
+  await apiFetch(`/api/v1/calls/${encodeURIComponent(callId)}/send-booking-followup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      recipient_email: recipientEmail,
+      recipient_phone: recipientPhone,
+      sms_consent_confirmed: true,
+      email_consent_confirmed: true,
+    }),
+  });
+  revalidatePath(`/calls/${callId}`);
+}
+

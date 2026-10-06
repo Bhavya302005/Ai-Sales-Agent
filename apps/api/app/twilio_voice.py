@@ -174,26 +174,29 @@ def build_conversation_relay_twiml(
     welcome_greeting: str,
 ) -> str:
     response = Element("Response")
+    say_intro = SubElement(response, "Say")
+    say_intro.text = "Connecting to AI Sales Agent."
     connect = SubElement(
         response,
         "Connect",
         {"action": public_http_url(settings, f"/api/v1/twilio/calls/{call_id}/ended")},
     )
-    relay = SubElement(
-        connect,
-        "ConversationRelay",
-        {
-            "url": public_websocket_url(
-                settings, f"/api/v1/twilio/conversation/{call_id}"
-            ),
-            "welcomeGreeting": welcome_greeting,
-            "welcomeGreetingInterruptible": "speech",
-            "language": settings.twilio_conversation_language,
-            "interruptible": "speech",
-            "preemptible": "true",
-        },
-    )
+    relay_attrs = {
+        "url": public_websocket_url(
+            settings, f"/api/v1/twilio/conversation/{call_id}"
+        ),
+        "welcomeGreeting": welcome_greeting,
+        "welcomeGreetingInterruptible": "speech",
+        "language": settings.twilio_conversation_language,
+        "ttsProvider": "Google",
+        "voice": "en-IN-Wavenet-A" if settings.twilio_conversation_language == "en-IN" else "hi-IN-Wavenet-A",
+        "interruptible": "speech",
+        "preemptible": "true",
+    }
+    relay = SubElement(connect, "ConversationRelay", relay_attrs)
     SubElement(relay, "Parameter", {"name": "localCallId", "value": str(call_id)})
+    say_disconnect = SubElement(response, "Say")
+    say_disconnect.text = "Conversation relay disconnected."
     SubElement(response, "Hangup")
     return '<?xml version="1.0" encoding="UTF-8"?>' + tostring(
         response, encoding="unicode", short_empty_elements=True

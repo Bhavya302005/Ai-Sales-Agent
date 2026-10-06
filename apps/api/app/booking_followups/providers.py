@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
@@ -76,6 +76,7 @@ class TextBeeSmsSender:
             raise ProviderPermanentError("TextBee API key or device ID is not configured")
         self._api_key = settings.textbee_api_key.get_secret_value()
         self._device_id = settings.textbee_device_id
+        self._sim_subscription_id = getattr(settings, "textbee_sim_subscription_id", None)
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url="https://api.textbee.dev/api/v1",
@@ -89,10 +90,13 @@ class TextBeeSmsSender:
 
     def send(self, *, destination: str, body: str, idempotency_key: str) -> SmsDelivery:
         del idempotency_key
+        payload: dict[str, Any] = {"recipients": [destination], "message": body}
+        if self._sim_subscription_id is not None:
+            payload["simSubscriptionId"] = self._sim_subscription_id
         try:
             response = self._client.post(
                 f"/gateway/devices/{self._device_id}/send-sms",
-                json={"recipients": [destination], "message": body},
+                json=payload,
             )
         except httpx.HTTPError as exc:
             raise ProviderRetryableError("TextBee messaging is temporarily unavailable") from exc

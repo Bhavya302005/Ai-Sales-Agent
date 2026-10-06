@@ -62,7 +62,8 @@ def start_voice_call(
         raise PermissionError("global call kill switch is active")
     if call.state != "eligible":
         raise PermissionError(f"call is not eligible to start (state={call.state})")
-    if not bool(call.eligibility_decision.get("eligible")):
+    decision = call.eligibility_decision or {}
+    if not (bool(decision.get("eligible")) or decision.get("status") == "eligible"):
         raise PermissionError("stored eligibility decision does not allow this call")
     call.state = "connecting"
     session.flush()
@@ -114,7 +115,8 @@ def start_provider_voice_call(
         raise PermissionError("global call kill switch is active")
     if call.state not in {"connecting", "active"}:
         raise PermissionError(f"provider call cannot start (state={call.state})")
-    if not bool(call.eligibility_decision.get("eligible")):
+    decision = call.eligibility_decision or {}
+    if not (bool(decision.get("eligible")) or decision.get("status") == "eligible"):
         raise PermissionError("stored eligibility decision does not allow this call")
     if call.started_at is None:
         call.started_at = datetime.now(UTC)

@@ -473,6 +473,59 @@ def _sync_single_omnidim_call(
     return True
 
 
+def _sync_single_twilio_call(
+    session: Session,
+    call: Call,
+    settings: Settings,
+    organization_id: UUID,
+) -> bool:
+    if call.transport != "twilio":
+        return False
+    if call.state not in {"connecting", "active", "ending"}:
+        return False
+    mapping = provider_mapping(session, call_id=call.id)
+    if mapping is None:
+        return False
+    if not settings.twilio_account_sid or not settings.twilio_auth_token:
+        return False
+    try:
+        from twilio.rest import Client
+
+        client = Client(
+            settings.twilio_account_sid,
+            settings.twilio_auth_token.get_secret_value(),
+        )
+        provider_call = client.calls(mapping.external_id).fetch()
+    except Exception:
+        return False
+    status_str = str(provider_call.status or "").lower()
+    if status_str not in {"completed", "busy", "failed", "no-answer", "canceled"}:
+        return False
+    call.usage = {
+        **call.usage,
+        "provider_status": status_str,
+        "duration_seconds": int(provider_call.duration or 0),
+        "reservation_status": "consumed" if status_str == "completed" else "released",
+    }
+    if status_str == "completed":
+        call.state = "completed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        if not call.outcome:
+            call.outcome = "twilio_completed"
+        session.flush()
+        finalize_completed_call(
+            session,
+            organization_id=organization_id,
+            call_id=call.id,
+        )
+    else:
+        call.state = "failed"
+        call.ended_at = call.ended_at or datetime.now(UTC)
+        call.outcome = f"twilio_{status_str.replace('-', '_')}"
+    session.commit()
+    return True
+
+
 def _campaign_lead_response(
     session: Session, organization_id: UUID, item: CampaignLead
 ) -> CampaignLeadResponse:
@@ -503,16 +556,19 @@ def _campaign_lead_response(
         .order_by(Call.created_at.desc())
         .limit(1)
     )
-    if (
-        latest_call
-        and latest_call.transport == "omnidim"
-        and latest_call.state in {"connecting", "active", "ending"}
-    ):
-        try:
-            _sync_single_omnidim_call(session, latest_call, get_settings(), organization_id)
-            session.refresh(latest_call)
-        except Exception:
-            pass
+    if latest_call and latest_call.state in {"connecting", "active", "ending"}:
+        if latest_call.transport == "omnidim":
+            try:
+                _sync_single_omnidim_call(session, latest_call, get_settings(), organization_id)
+                session.refresh(latest_call)
+            except Exception:
+                pass
+        elif latest_call.transport == "twilio":
+            try:
+                _sync_single_twilio_call(session, latest_call, get_settings(), organization_id)
+                session.refresh(latest_call)
+            except Exception:
+                pass
     qualification = (
         session.scalar(
             select(Qualification).where(
@@ -1057,12 +1113,19 @@ def get_call(
     )
     if call is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Call not found")
-    if call.transport == "omnidim" and call.state in {"connecting", "active", "ending"}:
-        try:
-            _sync_single_omnidim_call(session, call, settings, auth.organization_id)
-            session.refresh(call)
-        except Exception:
-            pass
+    if call.state in {"connecting", "active", "ending"}:
+        if call.transport == "omnidim":
+            try:
+                _sync_single_omnidim_call(session, call, settings, auth.organization_id)
+                session.refresh(call)
+            except Exception:
+                pass
+        elif call.transport == "twilio":
+            try:
+                _sync_single_twilio_call(session, call, settings, auth.organization_id)
+                session.refresh(call)
+            except Exception:
+                pass
     return _call_response(call)
 
 

@@ -741,7 +741,6 @@ def create_conversation_session(
         .where(
             Call.id == context.call_id,
             Call.organization_id == context.organization_id,
-            Product.active_version_id == ProductVersion.id,
             ProductVersion.approved_at.is_not(None),
         )
     ).one_or_none()

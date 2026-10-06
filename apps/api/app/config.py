@@ -6,8 +6,21 @@ from pydantic import AliasChoices, Field, SecretStr, field_validator, model_vali
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_API_DIR = Path(__file__).resolve().parents[1]
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(
+            str(_REPO_ROOT / ".env"),
+            str(_API_DIR / ".env"),
+            ".env",
+        ),
+        extra="ignore",
+    )
 
     app_env: Literal["development", "test", "staging", "production"] = "development"
     database_url: str = Field(
@@ -87,10 +100,12 @@ class Settings(BaseSettings):
     calendly_scheduling_url: str | None = None
     public_api_base_url: str | None = None
     omnidim_tool_secret: SecretStr | None = None
+    human_sales_rep_phone: SecretStr | None = None
     sms_mode: Literal["disabled", "mock", "twilio", "textbee"] = "disabled"
     twilio_messaging_from_number: SecretStr | None = None
     textbee_api_key: SecretStr | None = None
     textbee_device_id: str | None = None
+    textbee_sim_subscription_id: int | None = 1
     booking_retry_delay_minutes: int = Field(default=1440, ge=1, le=10080)
     booking_demo_mode: bool = False
     booking_scheduler_mode: Literal["disabled", "inline", "celery"] = "disabled"

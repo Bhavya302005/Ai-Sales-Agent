@@ -9,9 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.notifications import notify_roles
 from app.persistence.models import (
+    BookingFollowup,
     Call,
     CallbackRequest,
     CampaignLead,
+    ConsentRecord,
+    FieldAssertion,
     HandoffTask,
     Lead,
     Membership,
@@ -312,6 +315,106 @@ def _handoff_reason(qualification: Qualification, outcome: str | None) -> tuple[
     return "normal", f"Conversation requested human review ({outcome or 'unspecified'})."
 
 
+def _auto_extract_and_queue_followup(
+    session: Session,
+    *,
+    organization_id: UUID,
+    call: Call,
+    segments: list[TranscriptSegment],
+    qualification: Qualification,
+    handoff: HandoffTask | None,
+    now: datetime,
+) -> None:
+    from app.config import get_settings
+
+    # 1. Extract email from transcript if lead has none recorded
+    email_regex = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+    extracted_email = None
+    for s in segments:
+        matches = email_regex.findall(s.text)
+        if matches:
+            extracted_email = matches[0].strip().casefold()
+            break
+    if not extracted_email:
+        from app.booking_followups.service import _recipient_email
+
+        extracted_email = _recipient_email(session, call=call)
+    else:
+        assertion = session.scalar(
+            select(FieldAssertion).where(
+                FieldAssertion.organization_id == organization_id,
+                FieldAssertion.entity_type == "lead",
+                FieldAssertion.entity_id == call.lead_id,
+                FieldAssertion.field_name == "email",
+            )
+        )
+        if assertion:
+            assertion.value = {"email": extracted_email}
+            assertion.observed_at = now
+        else:
+            session.add(
+                FieldAssertion(
+                    organization_id=organization_id,
+                    entity_type="lead",
+                    entity_id=call.lead_id,
+                    field_name="email",
+                    value={"email": extracted_email},
+                    source="transcript_extraction",
+                    observed_at=now,
+                )
+            )
+        session.flush()
+
+    # 2. Check for SMS / Email consent in transcript
+    participant_text = " ".join(s.text.casefold() for s in segments if s.speaker == "participant")
+    agent_text = " ".join(s.text.casefold() for s in segments if s.speaker == "agent")
+
+    has_email = bool(extracted_email) or any(k in participant_text for k in ["email", "mail", "ईमेल", "मेल"])
+    has_sms = any(k in participant_text for k in ["sms", "message", "मैसेज", "एसएमएस", "text", "whatsapp"])
+
+    agent_offered = any(k in agent_text for k in ["message", "details भेज", "link", "संदेश", "मैसेज", "email और sms"])
+    participant_agreed = any(k in participant_text for k in [
+        "yes", "haan", "haan ji", "हाँ", "जी हाँ", "बिल्कुल", "theek hai", "ठीक है",
+        "dono", "दोनों", "sure", "ok", "okay"
+    ])
+    if agent_offered and participant_agreed:
+        has_sms = True
+        if extracted_email or "email" in participant_text or "email" in agent_text:
+            has_email = True
+
+    # 3. Queue booking followup if qualification indicates interest or handoff requested
+    if handoff is not None or qualification.interest == "positive" or has_sms or has_email:
+        settings = get_settings()
+        existing = session.scalar(
+            select(BookingFollowup).where(
+                BookingFollowup.organization_id == organization_id,
+                BookingFollowup.call_id == call.id,
+            )
+        )
+        if existing is None and (settings.calendly_scheduling_url or (settings.calendly_access_token and settings.calendly_event_type_uri)):
+            try:
+                from app.booking_followups.service import queue_booking_link, process_link_send
+
+                queued = queue_booking_link(
+                    session,
+                    call=call,
+                    settings=settings,
+                    sms_consent_confirmed=has_sms or (settings.sms_mode != "disabled"),
+                    email_consent_confirmed=has_email or bool(extracted_email),
+                    retry_consent_confirmed=True,
+                )
+                if queued.created and settings.async_mode == "inline":
+                    process_link_send(
+                        session,
+                        organization_id=organization_id,
+                        followup_id=queued.followup.id,
+                        settings=settings,
+                    )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning("Auto-queueing booking followup failed: %s", exc)
+
+
 def finalize_completed_call(
     session: Session,
     *,
@@ -489,6 +592,16 @@ def finalize_completed_call(
     from app.booking_followups.service import attach_finalized_handoff
 
     attach_finalized_handoff(session, call_id=call.id, organization_id=organization_id)
+
+    _auto_extract_and_queue_followup(
+        session,
+        organization_id=organization_id,
+        call=call,
+        segments=segments,
+        qualification=qualification,
+        handoff=handoff,
+        now=now or datetime.now(UTC),
+    )
 
     return FinalizationResult(
         qualification=qualification,

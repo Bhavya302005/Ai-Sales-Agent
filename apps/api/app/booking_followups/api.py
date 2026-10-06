@@ -10,7 +10,7 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -24,8 +24,10 @@ from app.persistence.models import (
     BookingFollowup,
     Call,
     CallbackRequest,
+    CampaignLead,
     Contact,
     HandoffTask,
+    Membership,
     OutboxEvent,
     ProviderWebhookEvent,
     Suppression,
@@ -49,6 +51,30 @@ class OmniDimBookingToolResponse(BaseModel):
     status: str
     delivery_status: str
     safe_agent_message: str
+
+
+class OmniDimTransferToolRequest(BaseModel):
+    call_id: UUID | None = None
+    attendee_consent_confirmed: bool = True
+    reason: str | None = None
+
+
+class OmniDimTransferToolResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    status: str
+    safe_agent_message: str
+    handoff_task_id: UUID | None = None
+    omni_transfer_number: str | None = Field(
+        default=None,
+        serialization_alias="__omni_transfer_number",
+        alias="__omni_transfer_number",
+    )
+    omni_transfer_message: str | None = Field(
+        default=None,
+        serialization_alias="__omni_transfer_message",
+        alias="__omni_transfer_message",
+    )
 
 
 class BookingIntegrationStatus(BaseModel):
@@ -168,6 +194,128 @@ def send_booking_link(
         status=queued.followup.status,
         delivery_status=queued.followup.delivery_status,
         safe_agent_message=_safe_agent_message(queued.followup),
+    )
+
+
+@router.post(
+    "/provider-tools/omnidim/transfer-call",
+    response_model=OmniDimTransferToolResponse,
+)
+def transfer_call(
+    payload: OmniDimTransferToolRequest,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    tool_secret: Annotated[str | None, Header(alias="X-Omnidim-Tool-Secret")] = None,
+) -> OmniDimTransferToolResponse:
+    _verify_tool_secret(tool_secret, settings)
+
+    call = None
+    if payload.call_id:
+        call = session.scalar(select(Call).where(Call.id == payload.call_id))
+        if call is None:
+            raise HTTPException(status_code=404, detail="Call not found")
+    else:
+        call = session.scalar(select(Call).order_by(Call.created_at.desc()).limit(1))
+        if call is None:
+            raise HTTPException(status_code=404, detail="Call not found")
+
+    if not payload.attendee_consent_confirmed:
+        return OmniDimTransferToolResponse(
+            status="declined",
+            safe_agent_message="The attendee declined live transfer. Continue conversation.",
+        )
+
+    rep_phone = (
+        settings.human_sales_rep_phone.get_secret_value().strip()
+        if settings.human_sales_rep_phone
+        else None
+    )
+    if not rep_phone:
+        return OmniDimTransferToolResponse(
+            status="unavailable",
+            safe_agent_message=(
+                "A human sales specialist is not currently reachable by phone. "
+                "Offer a post-call summary and Calendly link instead."
+            ),
+        )
+
+    now = datetime.now(UTC)
+    handoff_id = None
+    if call is not None:
+        handoff = session.scalar(
+            select(HandoffTask).where(
+                HandoffTask.organization_id == call.organization_id,
+                HandoffTask.call_id == call.id,
+            )
+        )
+    if handoff is None:
+        owner_id = (
+            session.scalar(
+                select(CampaignLead.owner_id).where(
+                    CampaignLead.organization_id == call.organization_id,
+                    CampaignLead.campaign_id == call.campaign_id,
+                    CampaignLead.lead_id == call.lead_id,
+                )
+            )
+            or session.scalar(
+                select(Membership.user_id).where(
+                    Membership.organization_id == call.organization_id,
+                    Membership.role == "owner",
+                )
+            )
+            or call.organization_id
+        )
+
+        handoff = HandoffTask(
+            organization_id=call.organization_id,
+            lead_id=call.lead_id,
+            call_id=call.id,
+            owner_id=owner_id,
+            priority="high",
+            reason=payload.reason or "Live in-call transfer requested by prospect",
+            due_at=now,
+            state="in_progress",
+            external_reference=f"live_transfer:{call.id}",
+        )
+        session.add(handoff)
+        session.flush()
+        handoff_id = handoff.id
+    elif call is not None:
+        handoff.state = "in_progress"
+        handoff.priority = "high"
+        handoff.reason = f"{handoff.reason}; live transfer requested"
+        handoff_id = handoff.id
+
+    if call is not None:
+        request_id = getattr(getattr(request, "state", None), "request_id", None)
+        session.add(
+            AuditLog(
+                organization_id=call.organization_id,
+                actor_id=None,
+                action="live_call_transfer_requested",
+                target_type="call",
+                target_id=call.id,
+                reason=f"transfer_to={rep_phone[:4]}***;handoff_id={handoff_id}",
+                request_id=request_id,
+            )
+        )
+
+        call.outcome = "live_transfer_initiated"
+        call.usage = {
+            **call.usage,
+            "transfer_status": "initiated",
+            "transferred_at": now.isoformat(),
+            "handoff_task_id": str(handoff_id) if handoff_id else None,
+        }
+        session.commit()
+
+    return OmniDimTransferToolResponse(
+        status="transferring",
+        safe_agent_message="Connecting you with our sales specialist now. Please stay on the line.",
+        handoff_task_id=handoff_id,
+        omni_transfer_number=rep_phone,
+        omni_transfer_message="Please stay on the line while I connect you to our sales specialist.",
     )
 
 
@@ -406,3 +554,100 @@ async def twilio_sms_webhook(
         content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         media_type="application/xml",
     )
+
+
+class SendBookingFollowupRequest(BaseModel):
+    recipient_email: str | None = None
+    recipient_phone: str | None = None
+    sms_consent_confirmed: bool = True
+    email_consent_confirmed: bool = True
+
+
+@router.post("/calls/{call_id}/send-booking-followup")
+def manual_send_booking_followup(
+    call_id: UUID,
+    auth: Auth,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    payload: SendBookingFollowupRequest | None = None,
+) -> dict[str, Any]:
+    call = session.scalar(
+        select(Call).where(Call.id == call_id, Call.organization_id == auth.organization_id)
+    )
+    if call is None:
+        raise HTTPException(status_code=404, detail="Call not found")
+
+    recipient_phone = payload.recipient_phone if payload else None
+    if recipient_phone and recipient_phone.strip():
+        contact = session.scalar(select(Contact).where(Contact.id == call.contact_id))
+        if contact:
+            from app.contact_secrets import seal_phone_number
+
+            contact.identifier_encrypted_ref = seal_phone_number(recipient_phone.strip(), settings)
+            session.flush()
+
+    recipient_email = payload.recipient_email if payload else None
+    if recipient_email:
+        from app.persistence.models import FieldAssertion
+
+        assertion = session.scalar(
+            select(FieldAssertion).where(
+                FieldAssertion.organization_id == auth.organization_id,
+                FieldAssertion.entity_type == "lead",
+                FieldAssertion.entity_id == call.lead_id,
+                FieldAssertion.field_name == "email",
+            )
+        )
+        if assertion:
+            assertion.value = {"email": recipient_email.strip().casefold()}
+            assertion.observed_at = datetime.now(UTC)
+        else:
+            session.add(
+                FieldAssertion(
+                    organization_id=auth.organization_id,
+                    entity_type="lead",
+                    entity_id=call.lead_id,
+                    field_name="email",
+                    value={"email": recipient_email.strip().casefold()},
+                    source="manual_entry",
+                    observed_at=datetime.now(UTC),
+                )
+            )
+        session.flush()
+
+    sms_consent = payload.sms_consent_confirmed if payload else True
+    email_consent = payload.email_consent_confirmed if payload else True
+
+    from app.booking_followups.service import process_link_send
+
+    queued = queue_booking_link(
+        session,
+        call=call,
+        settings=settings,
+        sms_consent_confirmed=sms_consent,
+        email_consent_confirmed=email_consent,
+        retry_consent_confirmed=True,
+    )
+    session.commit()
+
+    followup = queued.followup
+    # Trigger delivery immediately
+    process_link_send(
+        session,
+        organization_id=auth.organization_id,
+        followup_id=followup.id,
+        settings=settings,
+        force=True,
+    )
+    session.commit()
+    session.refresh(followup)
+
+    return {
+        "followup_id": str(followup.id),
+        "status": followup.status,
+        "delivery_status": followup.delivery_status,
+        "delivery_mode": followup.delivery_mode,
+        "calendly_link": followup.calendly_link,
+        "last_error_code": followup.last_error_code,
+    }
+

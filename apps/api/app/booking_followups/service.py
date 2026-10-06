@@ -112,25 +112,14 @@ def queue_booking_link(
     retry_consent_confirmed: bool,
     email_consent_confirmed: bool = False,
 ) -> BookingQueueResult:
-    if not sms_consent_confirmed:
-        raise ValueError("Explicit SMS consent is required")
-    if settings.sms_mode == "disabled":
-        raise ValueError("SMS delivery is disabled")
+    if not sms_consent_confirmed and not email_consent_confirmed:
+        raise ValueError("Explicit SMS or email consent is required")
     if not settings.calendly_scheduling_url and (
         not settings.calendly_access_token or not settings.calendly_event_type_uri
     ):
         raise ValueError("Calendly is not configured")
-    mapping = session.scalar(
-        select(ExternalMapping).where(
-            ExternalMapping.organization_id == call.organization_id,
-            ExternalMapping.provider == "omnidim",
-            ExternalMapping.local_type == "call",
-            ExternalMapping.local_id == call.id,
-            ExternalMapping.external_type == "call_request",
-        )
-    )
-    if mapping is None or call.transport != "omnidim" or call.state not in {"connecting", "active"}:
-        raise ValueError("Booking tools require an active mapped OmniDimension call")
+    if call.state not in {"connecting", "active", "completed"}:
+        raise ValueError(f"Booking follow-up requires a connecting, active, or completed call, not {call.state}")
     existing = session.scalar(
         select(BookingFollowup).where(
             BookingFollowup.organization_id == call.organization_id,
@@ -199,7 +188,7 @@ def queue_booking_link(
     queued = enqueue_once(
         session,
         organization_id=call.organization_id,
-        actor_id=call.attempt_id,
+        actor_id=call.attempt_id or call.id,
         route="POST:/api/v1/provider-tools/omnidim/send-booking-link",
         idempotency_key=f"booking-link:{call.id}",
         event_type="booking.link_send_requested.v1",
@@ -285,10 +274,10 @@ def _followup_copy(
         f'<a href="{safe_link}">Book a meeting</a>.</p>'
         f"<p>Best regards,<br>{safe_sender}</p>"
     )
-    sms_topic = _clean_summary(
-        qualification.need if qualification and qualification.need else published_need,
-        limit=85,
-    )
+    raw_topic = qualification.need if qualification and qualification.need else published_need
+    if raw_topic and any(ord(c) > 127 for c in raw_topic):
+        raw_topic = published_need if published_need and not any(ord(c) > 127 for c in published_need) else "your requirement"
+    sms_topic = _clean_summary(raw_topic, limit=85)
     sms = (
         f"Hi {contact.display_name.split()[0] if contact.display_name else 'there'}, thank you "
         f"for speaking with {sender_name}. As discussed, the next step for {sms_topic} is a "
@@ -317,6 +306,21 @@ def _recipient_email(session: Session, *, call: Call) -> str | None:
             if record is not None
             else None
         )
+    if not value:
+        from app.persistence.models import TranscriptSegment
+        segments = session.scalars(
+            select(TranscriptSegment.text)
+            .where(
+                TranscriptSegment.organization_id == call.organization_id,
+                TranscriptSegment.call_id == call.id,
+            )
+            .order_by(TranscriptSegment.sequence)
+        ).all()
+        for text in segments:
+            found = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text)
+            if found:
+                value = found[0]
+                break
     return str(value).strip().casefold() if value else None
 
 
@@ -349,6 +353,7 @@ def process_link_send(
     organization_id: UUID,
     followup_id: UUID,
     settings: Settings,
+    force: bool = False,
 ) -> None:
     followup = session.scalar(
         select(BookingFollowup)
@@ -360,7 +365,7 @@ def process_link_send(
     )
     if followup is None:
         raise LookupError("Booking follow-up does not exist")
-    if followup.delivery_status in {"sent", "simulated"}:
+    if not force and followup.delivery_status in {"sent", "simulated"}:
         return
     contact = session.scalar(
         select(Contact).where(
@@ -371,17 +376,7 @@ def process_link_send(
     if contact is None:
         raise LookupError("Booking contact does not exist")
     now = datetime.now(UTC)
-    if _active_suppression(
-        session,
-        organization_id=organization_id,
-        contact=contact,
-        channel="sms",
-        now=now,
-    ):
-        followup.delivery_status = "suppressed"
-        followup.status = "action_required"
-        followup.last_error_code = "sms_suppressed"
-        return
+
     if not followup.calendly_link:
         if settings.calendly_scheduling_url:
             followup.calendly_link = tracked_calendly_link(
@@ -395,9 +390,6 @@ def process_link_send(
                 )
             finally:
                 calendly.close()
-        # Calendly does not accept our idempotency key. Persist the one provider-created
-        # URL before the independently retryable SMS step so a worker restart cannot mint
-        # a second link for the same call.
         session.commit()
         followup = session.scalar(
             select(BookingFollowup)
@@ -409,12 +401,7 @@ def process_link_send(
         )
         if followup is None:
             raise LookupError("Booking follow-up no longer exists")
-    destination = (
-        "redacted-demo-destination"
-        if settings.sms_mode == "mock"
-        else resolve_phone_number(contact.identifier_encrypted_ref, settings)
-    )
-    company_name = settings.email_from_name or "us"
+
     call_obj = session.scalar(
         select(Call).where(
             Call.organization_id == organization_id,
@@ -423,6 +410,8 @@ def process_link_send(
     )
     if call_obj is None:
         raise LookupError("Booking call does not exist")
+
+    company_name = settings.email_from_name or "SignalPath"
     subject, body_html, sms_body = _followup_copy(
         session,
         call=call_obj,
@@ -430,42 +419,90 @@ def process_link_send(
         calendly_link=followup.calendly_link,
         sender_name=company_name,
     )
-    delivery = sms_sender(settings).send(
-        destination=destination,
-        body=sms_body,
-        idempotency_key=str(followup.id),
-    )
 
-    # Send the same grounded follow-up by email only when that channel was explicitly
-    # confirmed in the call and the address is not suppressed.
-    try:
-        from app.email_outreach.sender import send_email
+    sms_sent = False
+    email_sent = False
+    sms_error: str | None = None
+    email_error: str | None = None
+    delivery_provider = settings.sms_mode
+    delivery_message_id = f"followup:{followup.id}"
 
-        recipient_email = _recipient_email(session, call=call_obj)
-        if recipient_email and _email_allowed(
-            session, call=call_obj, recipient=recipient_email, now=now
-        ):
-            asyncio.run(
-                send_email(
-                    to_address=recipient_email,
-                    subject=subject,
-                    body_html=body_html,
-                    draft_id=str(followup.id),
+    # 1. Attempt SMS Delivery if enabled
+    if settings.sms_mode != "disabled":
+        sms_suppressed = _active_suppression(
+            session,
+            organization_id=organization_id,
+            contact=contact,
+            channel="sms",
+            now=now,
+        )
+        if sms_suppressed:
+            sms_error = "sms_suppressed"
+        else:
+            try:
+                destination = (
+                    "redacted-demo-destination"
+                    if settings.sms_mode == "mock"
+                    else resolve_phone_number(contact.identifier_encrypted_ref, settings)
                 )
-            )
-    except Exception as exc:
-        import logging
+                delivery = sms_sender(settings).send(
+                    destination=destination,
+                    body=sms_body,
+                    idempotency_key=f"{followup.id}:send:{int(now.timestamp())}",
+                )
+                delivery_provider = delivery.provider
+                delivery_message_id = delivery.provider_message_id
+                sms_sent = True
+            except Exception as exc:
+                sms_error = str(exc)
+                import logging
+                logging.getLogger(__name__).warning("Failed to send booking follow-up SMS: %s", exc)
 
-        logging.getLogger(__name__).error("Failed to send booking follow-up email: %s", exc)
-    followup.provider_message_id = delivery.provider_message_id
-    followup.delivery_mode = delivery.provider
-    followup.delivery_status = "simulated" if delivery.simulated else "sent"
-    followup.status = "awaiting_booking"
-    followup.link_sent_at = now
-    demo_delay = settings.booking_demo_mode and contact.demo_test_contact
-    delay_minutes = 2 if demo_delay else settings.booking_retry_delay_minutes + 5
-    followup.booking_check_at = now + timedelta(minutes=delay_minutes)
-    followup.last_error_code = None
+    # 2. Attempt Email Delivery if enabled
+    recipient_email = _recipient_email(session, call=call_obj)
+    if recipient_email:
+        # Record/refresh email consent
+        _record_consent(
+            session,
+            call=call_obj,
+            purpose="calendly_booking_followup",
+            channel="email",
+            scope="one_post_call_summary_and_calendly_link",
+            expires_at=now + timedelta(hours=48),
+        )
+        if settings.email_outreach_mode != "disabled":
+            if _email_allowed(session, call=call_obj, recipient=recipient_email, now=now):
+                try:
+                    from app.email_outreach.sender import send_email
+
+                    asyncio.run(
+                        send_email(
+                            to_address=recipient_email,
+                            subject=subject,
+                            body_html=body_html,
+                            draft_id=f"{followup.id}:send:{int(now.timestamp())}",
+                        )
+                    )
+                    email_sent = True
+                except Exception as exc:
+                    email_error = str(exc)
+                    import logging
+                    logging.getLogger(__name__).error("Failed to send booking follow-up email: %s", exc)
+
+    followup.provider_message_id = delivery_message_id
+    followup.delivery_mode = delivery_provider
+    if sms_sent or email_sent:
+        followup.delivery_status = "sent" if (sms_sent and settings.sms_mode != "mock") or email_sent else "simulated"
+        followup.status = "awaiting_booking"
+        followup.link_sent_at = now
+        demo_delay = settings.booking_demo_mode and contact.demo_test_contact
+        delay_minutes = 2 if demo_delay else settings.booking_retry_delay_minutes + 5
+        followup.booking_check_at = now + timedelta(minutes=delay_minutes)
+        followup.last_error_code = None
+    else:
+        followup.delivery_status = "failed"
+        followup.status = "action_required"
+        followup.last_error_code = sms_error or email_error or "no_channel_delivered"
 
 
 def attach_finalized_handoff(session: Session, *, call_id: UUID, organization_id: UUID) -> None:

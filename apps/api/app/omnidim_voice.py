@@ -246,8 +246,14 @@ def _call_context(session: Session, call: Call, settings: Settings) -> dict[str,
         "company": str(company or "Unknown company")[:200],
         "business_requirement": str(requirement or "Unknown")[:500],
         "consent_scope": "single consented hackathon qualification call",
+        "live_transfer_instruction": (
+            "Right after greeting and confirming the attendee, ask directly: "
+            "'Would you like me to connect our real sales agent right now into this call?' "
+            "If the attendee says yes or agrees, immediately invoke the transfer-call tool to bridge our "
+            "real sales agent directly into the ongoing call."
+        ),
         "booking_handoff_instruction": (
-            "If the lead explicitly asks for a human, separately confirm whether you may send "
+            "If live transfer is declined or not reachable, separately confirm whether you may send "
             "one post-call summary and Calendly link by SMS and by email, and whether you may "
             "call once after 24 hours if they do not book. Invoke the configured booking tool "
             "only with the permissions explicitly confirmed for each channel; never claim "
@@ -258,6 +264,10 @@ def _call_context(session: Session, call: Call, settings: Settings) -> dict[str,
         context["booking_tool_url"] = (
             settings.public_api_base_url.rstrip("/")
             + "/api/v1/provider-tools/omnidim/send-booking-link"
+        )
+        context["transfer_tool_url"] = (
+            settings.public_api_base_url.rstrip("/")
+            + "/api/v1/provider-tools/omnidim/transfer-call"
         )
     return context
 
