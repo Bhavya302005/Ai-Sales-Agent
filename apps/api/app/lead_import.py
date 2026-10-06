@@ -347,12 +347,16 @@ async def import_leads(
                     organization_id=auth.organization_id,
                     campaign_id=campaign.id,
                     lead_id=lead.id,
+                    contact_id=contact.id,
                     approved_at=None,
                     approved_by=None,
                     owner_id=auth.user_id,
                     state="pending_review",
                 )
             )
+        elif linked.contact_id is None:
+            # Backfill contact_id if missing (e.g. pre-existing records)
+            linked.contact_id = contact.id
         
         # Save the imported email as a FieldAssertion so other automations can use it
         if row.get("email"):

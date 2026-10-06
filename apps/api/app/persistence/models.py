@@ -306,6 +306,9 @@ class CampaignLead(IdMixin, TenantMixin, TimestampMixin, Base):
     lead_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
     )
+    contact_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     approved_by: Mapped[UUID | None] = mapped_column(Uuid)
     owner_id: Mapped[UUID | None] = mapped_column(Uuid)

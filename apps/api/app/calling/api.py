@@ -533,7 +533,16 @@ def _campaign_lead_response(
         select(Lead).where(Lead.organization_id == organization_id, Lead.id == item.lead_id)
     )
     contact = None
-    if lead and lead.company_id:
+    if item.contact_id:
+        # Prefer the contact pinned to this campaign lead (e.g. from CSV import)
+        contact = session.scalar(
+            select(Contact).where(
+                Contact.id == item.contact_id,
+                Contact.organization_id == organization_id,
+            )
+        )
+    if contact is None and lead and lead.company_id:
+        # Fall back to company-level contact lookup (manually-added leads)
         contact = session.scalar(
             select(Contact)
             .where(
